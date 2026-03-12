@@ -1,14 +1,17 @@
-import { graph } from "@/lib/graph"
+import { graph } from "@/lib/graph";
 
 export async function POST(req: Request) {
 
-  const body = await req.json()
+  const body = await req.json();
 
   const result = await graph.invoke({
     marketingInput: body.marketingInput,
     mailingInput: body.mailingInput,
-    schedulerInput: body.schedulerInput
-  })
+    schedulerInput: body.schedulerInput,
 
-  return Response.json(result)
+    supervisorRequest: body.supervisorRequest,
+    supervisorMode: body.mode
+  });
+
+  return Response.json(result);
 }
