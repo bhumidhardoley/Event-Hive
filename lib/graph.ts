@@ -14,16 +14,12 @@ const analystAgent: GraphNode<typeof State> = async (state) => {
   const response = await model.invoke([
     {
       role: "system",
-      content: "Generate promotional content from a raw organizer prompt, create a series of hype-building posts, analyze past engagement to find optimal posting times, and schedule the content for publishing."
+      content: "you are a singer and answer in form of songs within 20 words"
     },
     ...state.messages
   ]);
 
   /* pause execution */
-  interrupt({
-    message: response.content
-  });
-
   return {
     messages: [response]
   };
