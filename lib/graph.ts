@@ -8,9 +8,6 @@ const model = new ChatOllama({
   model: "qwen2.5",
 });
 
-/*
-Shared Graph State
-*/
 export const State = Annotation.Root({
   marketingInput: Annotation<string>(),
   mailingInput: Annotation<string>(),
@@ -21,10 +18,9 @@ export const State = Annotation.Root({
   schedulerOutput: Annotation<string>(),
 
   supervisorRequest: Annotation<string>(),
-  supervisorMode: Annotation<string>(), // edit | refine
+  supervisorMode: Annotation<string>(), 
   supervisorOutput: Annotation<string>(),
 });
-// Replace your existing supervisorAgent in lib/graph.ts with this:
 
 const supervisorAgent = async (state: typeof State.State) => {
   const response = await model.invoke([
@@ -66,11 +62,10 @@ ${state.schedulerOutput}
 `
     }
   ], {
-    format: "json" // Forces Ollama to stick to JSON format
+    format: "json" 
   });
 
   try {
-    // 1. Safely extract the string, handling LangChain's complex types
     const contentString = typeof response.content === "string"  ? response.content   : ""; 
     const parsed = JSON.parse(contentString);
 
@@ -85,9 +80,7 @@ ${state.schedulerOutput}
     return { supervisorOutput: "Error processing refined data." };
   }
 }
-/*
-Agent 1 — Content Strategist & Social Media Agent
-*/
+
 const marketingAgent = async (state: typeof State.State) => {
 
   const response = await model.invoke([
@@ -132,7 +125,7 @@ Use proper headings, bullet points, and spacing.
       role: "user",
       content: state.marketingInput,
     },
-  ]);
+  ], { runName: "marketingNode" });
 
   return {
     marketingOutput: response.content,
@@ -185,7 +178,7 @@ Mailing Input:
 ${state.mailingInput}
       `,
     },
-  ]);
+  ], { runName: "mailingNode" });
 
   return {
     mailingOutput: response.content,
@@ -239,7 +232,7 @@ Scheduler Input:
 ${state.schedulerInput}
       `,
     },
-  ]);
+  ], { runName: "SchedulerNode" });
 
   return {
     schedulerOutput: response.content,

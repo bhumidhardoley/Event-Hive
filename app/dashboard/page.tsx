@@ -11,22 +11,15 @@ export default function Dashboard(){
   const [mailingInput,setMailingInput] = useState("")
   const [schedulerInput,setSchedulerInput] = useState("")
 
-  const runAgents = async () => {
+ const runAgents = async () => {
+    // Save inputs instead of waiting for results
+    localStorage.setItem("agentInputs", JSON.stringify({
+      marketingInput,
+      mailingInput,
+      schedulerInput
+    }))
 
-    const res = await fetch("/api/agents",{
-      method:"POST",
-      headers:{ "Content-Type":"application/json"},
-      body:JSON.stringify({
-        marketingInput,
-        mailingInput,
-        schedulerInput
-      })
-    })
-
-    const data = await res.json()
-
-    localStorage.setItem("agentResults", JSON.stringify(data))
-
+    // Instantly go to the answers page to start the stream
     router.push("/answers")
   }
 
