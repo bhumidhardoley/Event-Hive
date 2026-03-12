@@ -1,52 +1,45 @@
-'use client'
+"use client"
+
 import { useState } from "react"
 
-export default function Dashboard(){
+export default function Home() {
 
-    const [EventDetails, setEventDetails] = useState("")
-    const [hover, setHover] = useState(false)
+  const [message, setMessage] = useState("")
+  const [response, setResponse] = useState("")
 
-    return(
-        <div style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            marginTop: "100px",
-            gap: "20px"
-        }}>
+  async function send() {
 
-            <h1>Enter Details about the Event</h1>
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ message })
+    })
 
-            <textarea
-                value={EventDetails}
-                onChange={(e) => setEventDetails(e.target.value)}
-                placeholder="Enter event details..."
-                style={{
-                    width: "500px",
-                    height: "200px",
-                    padding: "12px",
-                    fontSize: "16px",
-                    border: "2px solid black",
-                    borderRadius: "8px"
-                }}
-            />
+    const data = await res.json()
 
-            <button
-                onMouseEnter={() => setHover(true)}
-                onMouseLeave={() => setHover(false)}
-                style={{
-                    color: "black",
-                    padding: "10px 25px",
-                    fontSize: "16px",
-                    border: "2px solid black",
-                    borderRadius: "8px",
-                    backgroundColor: hover ? "#e0e0e0" : "white",
-                    cursor: "pointer"
-                }}
-            >
-                Submit
-            </button>
+    const last = data.messages[data.messages.length - 1]
 
-        </div>
-    )
+    setResponse(last.content ?? last.kwargs?.content)
+  }
+
+  return (
+    <div style={{ padding: 40 }}>
+
+      <input
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder="Ask something"
+      />
+
+      <button onClick={send}>
+        Send
+      </button>
+
+      <h3>Response</h3>
+      <p>{response}</p>
+
+    </div>
+  )
 }
