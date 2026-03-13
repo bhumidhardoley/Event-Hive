@@ -8,9 +8,6 @@ const model = new ChatOllama({
   model: "qwen2.5",
 });
 
-/*
-Shared Graph State
-*/
 export const State = Annotation.Root({
   marketingInput: Annotation<string>(),
   mailingInput: Annotation<string>(),
@@ -21,12 +18,11 @@ export const State = Annotation.Root({
   schedulerOutput: Annotation<string>(),
 
   supervisorRequest: Annotation<string>(),
-  supervisorMode: Annotation<string>(), // edit | refine
+  supervisorMode: Annotation<string>(), 
   supervisorOutput: Annotation<string>(),
 });
 
 const supervisorAgent = async (state: typeof State.State) => {
-
   const response = await model.invoke([
     {
       role: "system",
@@ -38,51 +34,53 @@ You oversee:
 • Email Communication
 • Event Scheduling
 
-The user may request:
+The user may request to EDIT or REFINE these plans.
 
-EDIT → change specific parts
-REFINE → improve the existing outputs
-
-Return the updated result in structured Markdown.
-
-Structure:
-
-# Final Event Plan
-
-## Marketing Strategy
-
-## Email Campaign
-
-## Event Schedule
+IMPORTANT: You MUST return your response as a valid JSON object. Do not wrap it in markdown block quotes. 
+Format exactly like this:
+{
+  "marketing": "Updated markdown for marketing...",
+  "email": "Updated markdown for email...",
+  "schedule": "Updated markdown for schedule..."
+}
 `
     },
     {
       role: "user",
       content: `
 Mode: ${state.supervisorMode}
+User Request: ${state.supervisorRequest}
 
-User Request:
-${state.supervisorRequest}
-
-Marketing Output:
+Current Marketing:
 ${state.marketingOutput}
 
-Mailing Output:
+Current Mailing:
 ${state.mailingOutput}
 
-Schedule Output:
+Current Schedule:
 ${state.schedulerOutput}
 `
     }
-  ]);
+  ], {
+    format: "json" 
+  });
 
-  return {
-    supervisorOutput: response.content
-  };
-};
-/*
-Agent 1 — Content Strategist & Social Media Agent
-*/
+  try {
+    const contentString = typeof response.content === "string"  ? response.content   : ""; 
+    const parsed = JSON.parse(contentString);
+
+    return {
+      marketingOutput: parsed.marketing || state.marketingOutput,
+      mailingOutput: parsed.email || state.mailingOutput,
+      schedulerOutput: parsed.schedule || state.schedulerOutput,
+      supervisorOutput: "Success"
+    };
+  } catch (error) {
+    console.error("Failed to parse Supervisor JSON:", response.content);
+    return { supervisorOutput: "Error processing refined data." };
+  }
+}
+
 const marketingAgent = async (state: typeof State.State) => {
 
   const response = await model.invoke([
@@ -127,7 +125,7 @@ Use proper headings, bullet points, and spacing.
       role: "user",
       content: state.marketingInput,
     },
-  ]);
+  ], { runName: "marketingNode" });
 
   return {
     marketingOutput: response.content,
@@ -180,7 +178,7 @@ Mailing Input:
 ${state.mailingInput}
       `,
     },
-  ]);
+  ], { runName: "mailingNode" });
 
   return {
     mailingOutput: response.content,
@@ -234,7 +232,7 @@ Scheduler Input:
 ${state.schedulerInput}
       `,
     },
-  ]);
+  ], { runName: "schedulerNode" });
 
   return {
     schedulerOutput: response.content,
