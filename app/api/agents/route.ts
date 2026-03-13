@@ -2,7 +2,13 @@ import { graph } from "@/lib/graph";
 
 export async function POST(req: Request) {
 
-  let body: any = {}
+  let body: {
+    marketingInput?: string
+    mailingInput?: string
+    schedulerInput?: string
+    supervisorRequest?: string
+    mode?: string
+  } = {}
 
   try {
     body = await req.json()
@@ -37,11 +43,11 @@ export async function POST(req: Request) {
 
           if (event.event === "on_chat_model_stream") {
 
-            const chunk = event.data.chunk?.content
+            const chunk = event.data?.chunk?.content
 
             if (
               chunk &&
-              ["marketingNode", "mailingNode", "schedulerNode"].includes(event.name)
+              ["marketing", "mailing", "scheduler"].includes(event.name)
             ) {
 
               const payload = JSON.stringify({
@@ -75,9 +81,9 @@ export async function POST(req: Request) {
 
         }
 
-      } catch (error: any) {
+      } catch (error: unknown) {
 
-        if (error?.name !== "AbortError") {
+        if (error instanceof Error && error.name !== "AbortError") {
           console.error("Stream error:", error)
         }
 
