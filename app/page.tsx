@@ -26,4 +26,4 @@ export default function Page() {
       <img src="/beehive.png" width={120} alt="Beehive logo" />
     </div>
   )
-}
+} 

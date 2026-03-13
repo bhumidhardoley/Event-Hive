@@ -1,23 +1,11 @@
 "use client"
 
-import { useEffect,useState } from "react"
 import ReactMarkdown from "react-markdown"
+import { useAgentContext } from "@/context/AgentContext"
 
 export default function Final(){
 
-  const [data,setData] = useState<any>(null)
-
-  useEffect(()=>{
-
-    const stored = localStorage.getItem("finalResults")
-
-    if(stored){
-      setData(JSON.parse(stored))
-    }
-
-  },[])
-
-  if(!data) return <p>Loading...</p>
+  const { inputs } = useAgentContext()
 
   return(
 
@@ -26,9 +14,10 @@ export default function Final(){
       <h1>Final Event Plan</h1>
 
       <ReactMarkdown>
-        {data.supervisorOutput}
+        {inputs.marketingInput}
       </ReactMarkdown>
 
     </div>
+
   )
 }
