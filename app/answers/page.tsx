@@ -18,7 +18,7 @@ export default function Answers() {
   const [marketingOutput,setMarketingOutput] = useState("")
   const [mailingOutput,setMailingOutput] = useState("")
   const [schedulerOutput,setSchedulerOutput] = useState("")
-  const [isGenerating,setIsGenerating] = useState(true)
+ 
 
   useEffect(() => {
 
@@ -33,7 +33,7 @@ export default function Answers() {
 
   const startStream = async () => {
 
-    setIsGenerating(true)
+
 
     try{
 
@@ -72,7 +72,7 @@ export default function Answers() {
           const json = line.replace("data: ","")
 
           if(json === "[DONE]"){
-            setIsGenerating(false)
+          
             return
           }
 
@@ -97,17 +97,15 @@ export default function Answers() {
     }catch(err){
       console.error("Stream error:",err)
     }
-
-    setIsGenerating(false)
   }
 
   return (
 
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <div className="min-h-screen bg-slate-50 py-12 px-4">
 
       <div className="max-w-5xl mx-auto space-y-8">
 
-        <h1 className="text-3xl font-bold">
+        <h1 className="text-3xl font-bold text-slate-900">
           Agent Results
         </h1>
 
@@ -125,18 +123,20 @@ function AgentBox({title,content}:{title:string,content:string}){
 
   return(
 
-    <div className="bg-white p-6 rounded-xl border shadow-sm">
+    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
 
-      <h2 className="text-xs uppercase text-indigo-500 mb-4 font-bold">
+      <h2 className="text-xs uppercase text-indigo-600 mb-4 font-bold tracking-wide">
         {title}
       </h2>
 
       {content ? (
 
-        <ReactMarkdown>{content}</ReactMarkdown>
+        <div className="prose prose-slate prose-sm max-w-none text-slate-700">
+          <ReactMarkdown>{content}</ReactMarkdown>
+        </div>
 
       ):(
-        <p className="text-gray-400">Agent thinking...</p>
+        <p className="text-slate-400">Agent thinking...</p>
       )}
 
     </div>
