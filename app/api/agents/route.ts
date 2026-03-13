@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
             if (
               chunk &&
-              ["marketing", "mailing", "scheduler"].includes(event.name)
+              ["marketingNode", "mailingNode", "schedulerNode"].includes(event.name)
             ) {
 
               const payload = JSON.stringify({

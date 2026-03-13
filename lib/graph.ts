@@ -49,7 +49,7 @@ const marketingAgent = async (state: typeof State.State) => {
   ], { runName: "marketingNode" }); // MATCHES FRONTEND
 
   return {
-    marketingOutput: response.content,
+    marketingOutput: String(response.content)
   };
 };
 
@@ -73,7 +73,7 @@ CSV Data: ${state.mailingInput}
   ], { runName: "mailingNode" }); // MATCHES FRONTEND
 
   return {
-    mailingOutput: response.content,
+    mailingOutput: String(response.content),
   };
 };
 
@@ -97,7 +97,7 @@ Input: ${state.schedulerInput}
   ], { runName: "schedulerNode" }); // MATCHES FRONTEND
 
   return {
-    schedulerOutput: response.content,
+    schedulerOutput: String(response.content),
   };
 };
 
