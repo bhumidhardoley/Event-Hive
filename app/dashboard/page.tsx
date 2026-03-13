@@ -3,20 +3,33 @@
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import FileUploadPreview from "@/components/FileUploadPreview"
+import { useAgentContext } from "@/context/AgentContext"
+
+interface MailingEntry {
+  id?: string | number
+  email?: string
+  name?: string
+  [key: string]: unknown
+}
 
 export default function Dashboard() {
   const router = useRouter()
 
-  const [mailingData, setMailingData] = useState<any[]>([])
+  const { setInputs } = useAgentContext()
+
+  const [mailingData, setMailingData] = useState<MailingEntry[]>([])
   const [marketingInput, setMarketingInput] = useState("")
+  const [mailingContext, setMailingContext] = useState("")
   const [schedulerInput, setSchedulerInput] = useState("")
 
-  const runAgents = async () => {
-    localStorage.setItem("agentInputs", JSON.stringify({
+  const runAgents = () => {
+    setInputs({
       marketingInput,
       mailingData,
+      mailingContext,
       schedulerInput
-    }))
+    })
+
     router.push("/answers")
   }
 
@@ -24,7 +37,6 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-3xl mx-auto">
         
-        {/* Header Section */}
         <header className="mb-10">
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
             Event Hive AI
@@ -37,7 +49,6 @@ export default function Dashboard() {
         <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
           <div className="p-8 space-y-8">
             
-            {/* Marketing Section */}
             <section>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Marketing Prompt
@@ -51,17 +62,28 @@ export default function Dashboard() {
               />
             </section>
 
-            {/* File Upload Section */}
             <section>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Email List (CSV / Excel)
               </label>
               <div className="border-2 border-dashed border-gray-200 rounded-lg p-2 hover:border-indigo-400 transition-colors">
-                <FileUploadPreview onDataExtracted={(data) => setMailingData(data)} />
+                <FileUploadPreview onDataExtracted={(data: MailingEntry[]) => setMailingData(data)} />
               </div>
             </section>
 
-            {/* Scheduler Section */}
+            <section>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Email Campaign Context
+              </label>
+              <textarea
+                className="w-full p-4 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none resize-none"
+                placeholder="Provide extra context for the email campaign..."
+                rows={3}
+                value={mailingContext}
+                onChange={(e) => setMailingContext(e.target.value)}
+              />
+            </section>
+
             <section>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Schedule Constraints
@@ -75,7 +97,6 @@ export default function Dashboard() {
               />
             </section>
 
-            {/* Action Section */}
             <div className="pt-4">
               <button
                 onClick={runAgents}
@@ -90,9 +111,10 @@ export default function Dashboard() {
 
         <footer className="mt-8 text-center">
           <p className="text-xs text-gray-400">
-            Powered by Event Hive Intelligence &bull; Standardized Data Processing
+            Powered by Event Hive Intelligence • Standardized Data Processing
           </p>
         </footer>
+
       </div>
     </div>
   )
