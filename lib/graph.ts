@@ -1,256 +1,188 @@
-import { Annotation, StateGraph, START, END } from "@langchain/langgraph";
-import { ChatOllama } from "@langchain/ollama";
 
-/*
-Ollama Model
-*/
+import { Annotation, StateGraph, START, END } from "@langchain/langgraph"
+import { ChatOllama } from "@langchain/ollama"
+
 const model = new ChatOllama({
   model: "qwen2.5",
-  temperature: 0.4
-});
+  temperature: 0.2
+})
 
 export const State = Annotation.Root({
+  supervisorRequest: Annotation<string>(),
+  mailingCSV: Annotation<string>(),
+  
+  // NEW: Store all human feedback to keep context in sync
+  humanFeedback: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => ""
+  }),
+
   marketingInput: Annotation<string>(),
   mailingInput: Annotation<string>(),
   schedulerInput: Annotation<string>(),
 
-  // Reducers ensure that as we move from Node A to Node B, 
-  // the data from Node A isn't lost or "reset".
-  marketingOutput: Annotation<string>({
-    reducer: (x, y) => y ?? x,
-    default: () => "",
-  }),
-  mailingOutput: Annotation<string>({
-    reducer: (x, y) => y ?? x,
-    default: () => "",
-  }),
-  schedulerOutput: Annotation<string>({
-    reducer: (x, y) => y ?? x,
-    default: () => "",
-  }),
+  marketingOutput: Annotation<string>({ reducer: (x, y) => y ?? x, default: () => "" }),
+  mailingOutput: Annotation<string>({ reducer: (x, y) => y ?? x, default: () => "" }),
+  schedulerOutput: Annotation<string>({ reducer: (x, y) => y ?? x, default: () => "" })
+})
 
-  supervisorRequest: Annotation<string>(),
-  supervisorMode: Annotation<string>(), 
-  supervisorOutput: Annotation<string>(),
-});
+type AgentState = typeof State.State
 
-/*
-Agent 1 — Marketing Strategy
-*/
-/*
-Agent 1 — Marketing Strategy
-*/
-const marketingAgent = async (state: typeof State.State) => {
-  const response = await model.invoke([
+/* SUPERVISOR AGENT */
+const supervisorAgent = async (state: AgentState) => {
+  const res = await model.invoke([
     {
       role: "system",
       content: `
-# Marketing Lead Agent
+You are an AI supervisor coordinating three specialized agents: Marketing, Email Outreach, and Event Scheduler.
 
-You ACT as the **Marketing Lead** for an event platform.
+Your job is ONLY to analyze the user request and assign tasks.
 
-## Responsibilities
-The organizer provides a raw text prompt describing the campaign goals.
+IMPORTANT RULES:
+- ONLY assign tasks to the agents.
+- Return STRICT JSON ONLY. No markdown.
 
-You must:
+Format:
+{
+ "marketing": "task for marketing agent",
+ "mailing": "task for email agent",
+ "scheduler": "task for scheduler agent"
+}
 
-1. Generate promotional marketing copy.
-2. Suggest a **series of social media posts** to build hype.
-3. Recommend **optimal release timing** for posts.
-4. Structure the campaign plan clearly.
+ORIGINAL USER REQUEST:
+${state.supervisorRequest}
 
-## Context
-Follow the organizer's prompt **very strictly** and do not introduce unrelated assumptions.
+LATEST HUMAN CORRECTIONS (CRITICAL - OVERRIDE PREVIOUS FACTS):
+${state.humanFeedback ? state.humanFeedback : "None yet."}
 
-Organizer Input:
-${state.marketingInput}
-
-## Output Format (Markdown)
-
-### Promotional Copy
-...
-
-### Social Media Hype Plan
-- Post 1
-- Post 2
-- Post 3
-
-### Recommended Release Timing
-...
-
-## Rules
-- Respond **ONLY in English**
-- Follow the provided context **very strictly**
-- Keep the response **under 250 words**
-- Do NOT exceed the word limit
+Instructions: If the human corrections mention a date change, new constraint, or specific detail, you MUST include that updated detail in the tasks for ALL relevant agents so they stay in sync.
 `
-    },
-    {
-      role: "user",
-      content: state.marketingInput,
-    },
-  ], { runName: "marketingNode" });
+    }
+  ], { runName: "supervisorNode" })
+
+  const raw = String(res.content)
+  let marketing = "", mailing = "", scheduler = ""
+
+  try {
+    const jsonMatch = raw.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]) as any
+      marketing = parsed.marketing ?? ""
+      mailing = parsed.mailing ?? ""
+      scheduler = parsed.scheduler ?? ""
+    }
+  } catch {
+    marketing = state.supervisorRequest
+    mailing = state.supervisorRequest
+    scheduler = state.supervisorRequest
+  }
 
   return {
-    marketingOutput: String(response.content)
-  };
-};
+    marketingInput: marketing,
+    mailingInput: `${mailing}\n\nParticipant Data:\n${state.mailingCSV}`,
+    schedulerInput: scheduler
+  }
+}
+
+// ... Keep your marketingAgent, mailingAgent, and schedulerAgent exactly as they were ...
 
 /*
-Agent 2 — Communications & Mailing
+MARKETING AGENT
 */
-/*
-Agent 2 — Communications & Mailing
-*/
-const mailingAgent = async (state: typeof State.State) => {
-  const response = await model.invoke([
+const marketingAgent = async (state: AgentState) => {
+  const res = await model.invoke([
     {
       role: "system",
       content: `
-# Communications & Targeted Mailing Agent
+You are THE CONTENT STRATEGIST & SOCIAL MEDIA AGENT.
+Role: You act as the marketing lead. 
+Responsibilities: Generate the promotional copy, suggest a series of posts to build hype, analyze historical engagement data to recommend optimal release times, and queue the content for execution.
 
-You act as the **Communications & Targeted Mailing Agent**.
-
-## Responsibilities
-The organizer uploads a **CSV/Excel event registration sheet** and provides a base email draft.
-
-You must:
-
-1. Extract and validate email addresses.
-2. Personalize the email content for recipients.
-3. Segment participants into relevant groups.
-4. Plan the outreach strategy.
-
-## Context Inputs
-
-Organizer Prompt:
+Task:
 ${state.marketingInput}
 
-Marketing Strategy:
-${state.marketingOutput}
+STRICT INSTRUCTIONS:
+- Be incredibly concise. 
+- DO NOT use conversational filler (e.g., "Here is your plan", "Sure!").
+- Output your plan using STRICT bullet points only.
+- Limit: Maximum 100 words.
+- Do not invent unnecessary details or hallucinate events.
+`
+    }
+  ], { runName: "marketingNode" })
 
-CSV Registration Data:
+  return {
+    marketingOutput: String(res.content)
+  }
+}
+
+/*
+MAILING AGENT
+*/
+const mailingAgent = async (state: AgentState) => {
+  const res = await model.invoke([
+    {
+      role: "system",
+      content: `
+You are THE COMMUNICATIONS & TARGETED MAILING AGENT.
+Role: Streamlines participant outreach. 
+Responsibilities: You receive an event registration sheet (CSV/Excel) and a base email draft. You autonomously extract and validate emails, dynamically personalize the draft for each recipient using data from the sheet, and handle the automated bulk distribution to segmented groups.
+
+Task:
 ${state.mailingInput}
 
-Follow these inputs **very strictly**.
-
-## Output Format (Markdown)
-
-### Email Personalization Strategy
-...
-
-### Audience Segmentation
-...
-
-### Outreach Execution Plan
-...
-
-## Rules
-- Respond **ONLY in English**
-- Follow the provided context **very strictly**
-- Maximum **250 words**
-- Do NOT exceed the word limit
+STRICT INSTRUCTIONS:
+- Rely ONLY on the provided participant data. Do NOT make up fake emails or names.
+- DO NOT use conversational filler.
+- Output your strategy using STRICT bullet points only.
+- Limit: Maximum 100 words.
+- Be direct and professional.
 `
-    },
-    {
-      role: "user",
-      content: `
-Organizer Input: ${state.marketingInput}
-Marketing Context: ${state.marketingOutput}
-CSV Data: ${state.mailingInput}
-`
-    },
-  ], { runName: "mailingNode" });
+    }
+  ], { runName: "mailingNode" })
 
   return {
-    mailingOutput: String(response.content),
-  };
-};
+    mailingOutput: String(res.content)
+  }
+}
+
 /*
-Agent 3 — Scheduler
+SCHEDULER AGENT
 */
-/*
-Agent 3 — Scheduler
-*/
-const schedulerAgent = async (state: typeof State.State) => {
-  const response = await model.invoke([
+const schedulerAgent = async (state: AgentState) => {
+  const res = await model.invoke([
     {
       role: "system",
       content: `
-# Dynamic Scheduler & Conflict Resolver Agent
+You are THE DYNAMIC SCHEDULER & CONFLICT RESOLVER AGENT.
+Role: Manages the master timeline. 
+Responsibilities: You take rough constraints and build the schedule. If a new constraint is introduced, autonomously recalculate the entire schedule, resolve new clashes, and define triggers for the email agent to notify participants of changes.
 
-You act as the **Dynamic Scheduler & Conflict Resolver Agent**.
-
-## Responsibilities
-The organizer provides rough scheduling constraints.
-
-You must:
-
-1. Build a structured event timeline.
-2. Detect possible scheduling conflicts.
-3. Propose conflict resolution strategies.
-4. Maintain a clear schedule structure.
-
-## Context Inputs
-
-Marketing Plan:
-${state.marketingOutput}
-
-Email Outreach Plan:
-${state.mailingOutput}
-
-Scheduling Constraints:
+Task:
 ${state.schedulerInput}
 
-Follow the provided context **very strictly**.
-
-## Output Format (Markdown)
-
-### Proposed Event Timeline
-...
-
-### Conflict Detection
-...
-
-### Conflict Resolution Strategy
-...
-
-### Communication Triggers
-...
-
-## Rules
-- Respond **ONLY in English**
-- Follow the provided context **very strictly**
-- Maximum **250 words**
-- Do NOT exceed the word limit
+STRICT INSTRUCTIONS:
+- DO NOT use conversational filler.
+- Output the timeline and conflict resolution using STRICT bullet points only.
+- Limit: Maximum 100 words.
+- Do not hallucinate constraints that the user did not provide.
 `
-    },
-    {
-      role: "user",
-      content: `
-Marketing: ${state.marketingOutput}
-Mailing: ${state.mailingOutput}
-Input: ${state.schedulerInput}
-`
-    },
-  ], { runName: "schedulerNode" });
+    }
+  ], { runName: "schedulerNode" })
 
   return {
-    schedulerOutput: String(response.content),
-  };
-};
+    schedulerOutput: String(res.content)
+  }
+}
 
-/*
-Build Graph
-*/
 export const graph = new StateGraph(State)
+  .addNode("supervisorNode", supervisorAgent)
   .addNode("marketingNode", marketingAgent)
   .addNode("mailingNode", mailingAgent)
   .addNode("schedulerNode", schedulerAgent)
-
-  .addEdge(START, "marketingNode")
+  .addEdge(START, "supervisorNode")
+  .addEdge("supervisorNode", "marketingNode")
   .addEdge("marketingNode", "mailingNode")
   .addEdge("mailingNode", "schedulerNode")
   .addEdge("schedulerNode", END)
-
-  .compile();
+  .compile()

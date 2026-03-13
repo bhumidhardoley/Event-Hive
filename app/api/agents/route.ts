@@ -1,15 +1,13 @@
-import { graph } from "@/lib/graph";
+import { graph } from "@/lib/graph"
+
+type RequestBody = {
+  prompt?: string
+  csv?: string
+  feedbackLog?: string
+}
 
 export async function POST(req: Request) {
-
-  let body: {
-    marketingInput?: string
-    mailingInput?: string
-    schedulerInput?: string
-    supervisorRequest?: string
-    mode?: string
-  } = {}
-
+  let body: RequestBody = {}
   try {
     body = await req.json()
   } catch {
@@ -17,89 +15,54 @@ export async function POST(req: Request) {
   }
 
   const encoder = new TextEncoder()
-
   const stream = new ReadableStream({
-
     async start(controller) {
-
       let closed = false
+      const safeClose = () => {
+        if (closed) return
+        closed = true
+        try { controller.close() } catch {}
+      }
 
       try {
-
         const events = await graph.streamEvents(
           {
-            marketingInput: body.marketingInput,
-            mailingInput: body.mailingInput,
-            schedulerInput: body.schedulerInput,
-            supervisorRequest: body.supervisorRequest || "",
-            supervisorMode: body.mode || ""
+            supervisorRequest: body.prompt ?? "",
+            mailingCSV: body.csv ?? "",
+            humanFeedback: body.feedbackLog ?? "" // Pass the accumulated feedback to the graph
           },
           { version: "v2" }
         )
 
         for await (const event of events) {
-
           if (closed) break
 
           if (event.event === "on_chat_model_stream") {
-
             const chunk = event.data?.chunk?.content
 
-            if (
-              chunk &&
-              ["marketingNode", "mailingNode", "schedulerNode"].includes(event.name)
-            ) {
-
-              const payload = JSON.stringify({
-                node: event.name,
-                text: chunk
-              })
-
+            if (chunk && ["marketingNode", "mailingNode", "schedulerNode"].includes(event.name)) {
+              const payload = JSON.stringify({ node: event.name, text: chunk })
               try {
-                controller.enqueue(
-                  encoder.encode(`data: ${payload}\n\n`)
-                )
+                controller.enqueue(encoder.encode(`data: ${payload}\n\n`))
               } catch {
-                closed = true
+                safeClose()
                 break
               }
-
             }
-
           }
-
         }
 
         if (!closed) {
-
-          controller.enqueue(
-            encoder.encode(`data: [DONE]\n\n`)
-          )
-
-          controller.close()
-          closed = true
-
+          try { controller.enqueue(encoder.encode(`data: [DONE]\n\n`)) } catch {}
+          safeClose()
         }
-
-      } catch (error: unknown) {
-
-        if (error instanceof Error && error.name !== "AbortError") {
-          console.error("Stream error:", error)
-        }
-
-        if (!closed) controller.close()
-
+      } catch (error) {
+        safeClose()
       }
-
     }
-
   })
 
   return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      "Connection": "keep-alive"
-    }
+    headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive" }
   })
 }

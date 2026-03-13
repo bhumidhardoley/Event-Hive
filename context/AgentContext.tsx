@@ -1,38 +1,48 @@
 "use client"
 
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext, useState, ReactNode } from "react"
 
-interface MailingEntry {
+export interface MailingEntry {
   id?: string | number
   email?: string
   name?: string
   [key: string]: unknown
 }
 
-type AgentInputs = {
-  marketingInput: string
+interface AgentInputs {
+  prompt: string
   mailingData: MailingEntry[]
-  mailingContext: string
-  schedulerInput: string
 }
 
-type AgentContextType = {
+interface AgentOutputs {
+  marketingOutput: string
+  mailingOutput: string
+  schedulerOutput: string
+}
+
+interface AgentContextType {
   inputs: AgentInputs
   setInputs: (inputs: AgentInputs) => void
+  outputs: AgentOutputs
+  setOutputs: (outputs: AgentOutputs) => void
 }
 
 const AgentContext = createContext<AgentContextType | undefined>(undefined)
 
-export function AgentProvider({ children }: { children: React.ReactNode }) {
+export function AgentProvider({ children }: { children: ReactNode }) {
   const [inputs, setInputs] = useState<AgentInputs>({
-    marketingInput: "",
-    mailingData: [],
-    mailingContext: "",
-    schedulerInput: ""
+    prompt: "",
+    mailingData: []
+  })
+
+  const [outputs, setOutputs] = useState<AgentOutputs>({
+    marketingOutput: "",
+    mailingOutput: "",
+    schedulerOutput: ""
   })
 
   return (
-    <AgentContext.Provider value={{ inputs, setInputs }}>
+    <AgentContext.Provider value={{ inputs, setInputs, outputs, setOutputs }}>
       {children}
     </AgentContext.Provider>
   )
@@ -40,10 +50,8 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
 
 export function useAgentContext() {
   const context = useContext(AgentContext)
-
   if (!context) {
     throw new Error("useAgentContext must be used inside AgentProvider")
   }
-
   return context
 }
