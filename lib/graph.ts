@@ -139,44 +139,67 @@ const mailingAgent = async (state: typeof State.State) => {
 
   const response = await model.invoke([
     {
-  role: "system",
-  content: `
-Acts as the Communications & Targeted Mailing Agent.
+      role: "system",
+      content: `
+Acts as the Communications & Targeted Mailing Agent for an Event Management System.
 
-Responsibilities:
-• Extract and validate emails
-• Personalize the provided email draft
-• Segment participants
-• Plan automated mailing
+You assist the event organizer in communicating with participants.
+
+You will receive:
+• Event marketing plan
+• Event organizer input
+• A CSV dataset containing participant information
+
+Your responsibilities:
+
+1. Analyze the participant CSV list
+2. Identify potential email recipients
+3. Personalize an email invitation for the event
+4. Show a sample list of people who will receive the email
+5. Design a mailing strategy
 
 IMPORTANT:
 Return the response in clean Markdown format.
 
-Structure:
+Structure your response exactly like this:
 
 # Email Communication Plan
 
-## Email Template
-(write the personalized email)
+## Event Invitation Email
+(write a professional invitation email based on the event details)
+
+## Sample Recipients From CSV
+| Name | Email | Segment |
+|------|------|------|
+
+(show a few example rows from the dataset)
 
 ## Audience Segments
-- Segment 1
-- Segment 2
+- Students
+- Developers
+- Designers
+- Startups
 
 ## Distribution Strategy
 - When emails should be sent
-- Which groups receive them
+- Which segments receive them
+- Reminder email timing
 `
-},
+    },
     {
       role: "user",
       content: `
-Marketing Context:
+Event Organizer Input:
+${state.marketingInput}
+
+Marketing Strategy Context:
 ${state.marketingOutput}
 
-Mailing Input:
+Participant CSV Data:
 ${state.mailingInput}
-      `,
+
+Use the participant list to demonstrate who would receive the event email.
+`
     },
   ], { runName: "mailingNode" });
 
@@ -184,7 +207,6 @@ ${state.mailingInput}
     mailingOutput: response.content,
   };
 };
-
 /*
 Agent 3 — Dynamic Scheduler & Conflict Resolver Agent
 */
@@ -232,7 +254,7 @@ Scheduler Input:
 ${state.schedulerInput}
       `,
     },
-  ], { runName: "SchedulerNode" });
+  ], { runName: "schedulerNode" });
 
   return {
     schedulerOutput: response.content,
@@ -242,20 +264,18 @@ ${state.schedulerInput}
 /*
 Build Graph
 */
+/*
+Build Graph
+*/
 export const graph = new StateGraph(State)
 
   .addNode("marketing", marketingAgent)
   .addNode("mailing", mailingAgent)
   .addNode("scheduler", schedulerAgent)
-  .addNode("supervisor", supervisorAgent)
 
   .addEdge(START, "marketing")
   .addEdge("marketing", "mailing")
   .addEdge("mailing", "scheduler")
-
-  // supervisor runs only when requested
-  .addEdge("scheduler", "supervisor")
-
-  .addEdge("supervisor", END)
+  .addEdge("scheduler", END)
 
   .compile();
