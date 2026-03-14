@@ -8,7 +8,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing API Key" }, { status: 500 })
     }
 
-    const finalPromptForApi = `A cinematic promotional poster. Modern aesthetic, bold typography. Event details: ${prompt}`
+    const finalPromptForApi = `A cinematic promotional poster in ENGLISHt. Modern aesthetic, bold typography. Event details: ${prompt}`
 
     let response;
     let retries = 3; 
