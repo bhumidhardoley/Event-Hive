@@ -1,25 +1,17 @@
 import { Annotation, StateGraph, START, END } from "@langchain/langgraph"
 import { ChatOllama } from "@langchain/ollama"
 
-// Initialize your local Qwen model
-const model = new ChatOllama({
-  model: "qwen2.5",
-  temperature: 0.2
-})
+const model = new ChatOllama({ model: "qwen2.5", temperature: 0.1 })
 
 export const State = Annotation.Root({
-  supervisorRequest: Annotation<string>(),
-  mailingCSV: Annotation<string>(),
+  chatHistory: Annotation<string>(), // Formatted chat log
+  csvData: Annotation<string>(),
   
-  humanFeedback: Annotation<string>({
-    reducer: (x, y) => y ?? x,
-    default: () => ""
-  }),
+  // Dynamic Routing State
+  nextAgents: Annotation<string[]>({ reducer: (x, y) => y ?? x, default: () => [] }),
+  isSwarmDone: Annotation<boolean>({ reducer: (x, y) => y ?? x, default: () => false }),
 
-  marketingInput: Annotation<string>(),
-  mailingInput: Annotation<string>(),
-  schedulerInput: Annotation<string>(),
-
+  // Outputs
   marketingOutput: Annotation<string>({ reducer: (x, y) => y ?? x, default: () => "" }),
   mailingOutput: Annotation<string>({ reducer: (x, y) => y ?? x, default: () => "" }),
   schedulerOutput: Annotation<string>({ reducer: (x, y) => y ?? x, default: () => "" })
@@ -31,129 +23,84 @@ const supervisorAgent = async (state: AgentState) => {
   const res = await model.invoke([
     {
       role: "system",
-      content: `
-You are an AI supervisor coordinating specialized agents for an event.
-Your job is ONLY to analyze the user request and assign tasks.
+      content: `You are the Event Hive Supervisor.
+Your goal is to collect 3 parameters from the user: 1) Event Name/Theme, 2) Target Audience, 3) Date/Time.
 
-IMPORTANT RULES:
-- ONLY assign tasks to the agents.
-- Return STRICT JSON ONLY. No markdown, no conversational text.
+Analyze the chat history. 
+If ANY information is missing, reply to the user conversationally to ask for it. DO NOT USE JSON. Just write a normal message.
+If ALL 3 parameters are present, you MUST start your response with the exact text: ###START_SWARM###
+(Example: "###START_SWARM### Perfect! I have all the details. I am starting the team now.")
 
-ORIGINAL USER REQUEST:
-${state.supervisorRequest}
-
-LATEST HUMAN CORRECTIONS (CRITICAL - OVERRIDE PREVIOUS FACTS):
-${state.humanFeedback ? state.humanFeedback : "None yet."}
-
-Instructions: If the human corrections mention a date change, new constraint, or specific detail, you MUST include that updated detail in the tasks for ALL relevant agents so they stay in sync.
-
-Format:
-{
- "marketing": "task for marketing agent",
- "mailing": "task for email agent",
- "scheduler": "task for scheduler agent"
-}
-`
+Chat History:
+${state.chatHistory}`
     }
   ], { runName: "supervisorNode" })
 
-  const raw = String(res.content)
-  let marketing = "", mailing = "", scheduler = ""
-
-  try {
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]) as any
-      marketing = parsed.marketing ?? ""
-      mailing = parsed.mailing ?? ""
-      scheduler = parsed.scheduler ?? ""
-    }
-  } catch {
-    marketing = state.supervisorRequest
-    mailing = state.supervisorRequest
-    scheduler = state.supervisorRequest
-  }
+  const reply = String(res.content)
+  const isReady = reply.includes("###START_SWARM###")
 
   return {
-    marketingInput: marketing,
-    mailingInput: `${mailing}\n\nParticipant Data:\n${state.mailingCSV}`,
-    schedulerInput: scheduler
+    // If we are NOT ready, we end the graph run here and wait for the user to reply again.
+    isSwarmDone: !isReady, 
+    // If we ARE ready, we queue up the agents!
+    nextAgents: isReady ? ["marketingNode", "mailingNode", "schedulerNode"] : []
   }
 }
 
 const marketingAgent = async (state: AgentState) => {
   const res = await model.invoke([
-    {
-      role: "system",
-      content: `
-You are THE CONTENT STRATEGIST & SOCIAL MEDIA AGENT.
-Role: You act as the marketing lead. Generate the promotional copy, suggest a series of posts to build hype, and recommend optimal release times.
-
-Task:
-${state.marketingInput}
-
-STRICT INSTRUCTIONS:
-- Be incredibly concise. 
-- DO NOT use conversational filler.
-- Output your plan using STRICT bullet points only.
-- Limit: Maximum 100 words.
-- Do not invent unnecessary details.
-`
+    { 
+      role: "system", 
+      content: `You are the Marketing Agent. Write 100 words of promotional copy based on the event details in the chat.
+      CRITICAL INSTRUCTION: Pay special attention to the LATEST USER MESSAGE in the history. If the user provided a correction or interrupted you to change something, you MUST follow their latest instruction.
+      
+      Context History:
+      ${state.chatHistory}` 
     }
   ], { runName: "marketingNode" })
-
-  return {
-    marketingOutput: String(res.content)
-  }
+  return { marketingOutput: String(res.content) }
 }
 
 const mailingAgent = async (state: AgentState) => {
   const res = await model.invoke([
-    {
-      role: "system",
-      content: `
-You are THE COMMUNICATIONS & TARGETED MAILING AGENT.
-Role: Streamlines participant outreach. Autonomously extract and validate emails, dynamically personalize the draft, and handle automated bulk distribution.
-
-Task:
-${state.mailingInput}
-
-STRICT INSTRUCTIONS:
-- Rely ONLY on the provided participant data. Do NOT make up fake emails.
-- DO NOT use conversational filler.
-- Output your strategy using STRICT bullet points only.
-- Limit: Maximum 100 words.
-`
+    { 
+      role: "system", 
+      content: `You are the Mailing Agent. Draft an email template based on the event details.
+      CRITICAL INSTRUCTION: Pay special attention to the LATEST USER MESSAGE in the history. If the user provided a correction or interrupted you to change something, you MUST follow their latest instruction.
+      
+      CSV Data:\n${state.csvData}
+      
+      Context History:
+      ${state.chatHistory}` 
     }
   ], { runName: "mailingNode" })
-
-  return {
-    mailingOutput: String(res.content)
-  }
+  return { mailingOutput: String(res.content) }
 }
 
 const schedulerAgent = async (state: AgentState) => {
   const res = await model.invoke([
-    {
-      role: "system",
-      content: `
-You are THE DYNAMIC SCHEDULER & CONFLICT RESOLVER AGENT.
-Role: Manages the master timeline. Build the schedule, calculate constraints, and resolve clashes.
-
-Task:
-${state.schedulerInput}
-
-STRICT INSTRUCTIONS:
-- DO NOT use conversational filler.
-- Output the timeline using STRICT bullet points only.
-- Limit: Maximum 100 words.
-`
+    { 
+      role: "system", 
+      content: `You are the Scheduler Agent. Create a bulleted timeline.
+      CRITICAL INSTRUCTION: Pay special attention to the LATEST USER MESSAGE in the history. If the user provided a correction or interrupted you to change something, you MUST follow their latest instruction.
+      
+      Context History:
+      ${state.chatHistory}` 
     }
   ], { runName: "schedulerNode" })
+  return { schedulerOutput: String(res.content) }
+}
 
-  return {
-    schedulerOutput: String(res.content)
-  }
+// DYNAMIC ROUTER
+const dynamicRouter = (state: AgentState) => {
+  if (state.isSwarmDone || state.nextAgents.length === 0) return END;
+  return state.nextAgents[0]; // Go to the first agent in the queue
+}
+
+// POST-AGENT QUEUE MANAGER
+const shiftQueue = (state: AgentState) => {
+  const remaining = state.nextAgents.slice(1);
+  return { nextAgents: remaining, isSwarmDone: remaining.length === 0 };
 }
 
 export const graph = new StateGraph(State)
@@ -161,10 +108,19 @@ export const graph = new StateGraph(State)
   .addNode("marketingNode", marketingAgent)
   .addNode("mailingNode", mailingAgent)
   .addNode("schedulerNode", schedulerAgent)
-  
+  .addNode("queueManager", async (state) => shiftQueue(state)) // Invisible node to manage state
+
   .addEdge(START, "supervisorNode")
-  .addEdge("supervisorNode", "marketingNode")
-  .addEdge("marketingNode", "mailingNode")
-  .addEdge("mailingNode", "schedulerNode")
-  .addEdge("schedulerNode", END)
+  
+  // After Supervisor, either end (reply) or route to the first agent
+  .addConditionalEdges("supervisorNode", (state) => state.isSwarmDone ? END : dynamicRouter(state))
+  
+  // After any agent runs, they go to the Queue Manager
+  .addEdge("marketingNode", "queueManager")
+  .addEdge("mailingNode", "queueManager")
+  .addEdge("schedulerNode", "queueManager")
+
+  // Queue Manager routes to the next agent, or ends
+  .addConditionalEdges("queueManager", dynamicRouter)
+  
   .compile()

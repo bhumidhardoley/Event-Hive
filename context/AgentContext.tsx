@@ -9,40 +9,46 @@ export interface MailingEntry {
   [key: string]: unknown
 }
 
-interface AgentInputs {
-  prompt: string
-  mailingData: MailingEntry[]
+export interface ChatMessage {
+  id: string
+  role: "user" | "supervisor" | "marketingNode" | "mailingNode" | "schedulerNode" | "system"
+  content: string
 }
 
-// Updated to include posterImage
+interface AgentInputs {
+  mailingData: MailingEntry[]
+  chatHistory: ChatMessage[] // <-- NEW
+}
+
 interface AgentOutputs {
   marketingOutput: string
   mailingOutput: string
   schedulerOutput: string
-  posterImage: string 
+  posterImage: string
 }
 
 interface AgentContextType {
   inputs: AgentInputs
-  setInputs: (inputs: AgentInputs) => void
+  setInputs: React.Dispatch<React.SetStateAction<AgentInputs>>
   outputs: AgentOutputs
-  setOutputs: (outputs: AgentOutputs) => void
+  setOutputs: React.Dispatch<React.SetStateAction<AgentOutputs>>
 }
 
 const AgentContext = createContext<AgentContextType | undefined>(undefined)
 
 export function AgentProvider({ children }: { children: ReactNode }) {
   const [inputs, setInputs] = useState<AgentInputs>({
-    prompt: "",
-    mailingData: []
+    mailingData: [],
+    chatHistory: [
+      { id: "1", role: "supervisor", content: "Hello! I am the Event Hive Supervisor. To get started, what kind of event are you hosting? Please provide the event name, target audience, and general timeframe." }
+    ]
   })
 
-  // Initialize posterImage
   const [outputs, setOutputs] = useState<AgentOutputs>({
     marketingOutput: "",
     mailingOutput: "",
     schedulerOutput: "",
-    posterImage: "" 
+    posterImage: ""
   })
 
   return (
@@ -54,8 +60,6 @@ export function AgentProvider({ children }: { children: ReactNode }) {
 
 export function useAgentContext() {
   const context = useContext(AgentContext)
-  if (!context) {
-    throw new Error("useAgentContext must be used inside AgentProvider")
-  }
+  if (!context) throw new Error("useAgentContext must be used inside AgentProvider")
   return context
 }

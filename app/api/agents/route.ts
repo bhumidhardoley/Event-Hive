@@ -1,37 +1,27 @@
 import { graph } from "@/lib/graph"
-
-type RequestBody = {
-  prompt?: string
-  csv?: string
-  feedbackLog?: string
-}
+// import { connectToDatabase } from "@/lib/db"
+// import ChatSession from "@/models/ChatSession"
 
 export async function POST(req: Request) {
-  let body: RequestBody = {}
-  try {
-    body = await req.json()
-  } catch {
-    body = {}
-  }
+  const body = await req.json()
+  const { chatHistory, csvData, sessionId } = body
+
+  // Format history for the LLM
+  const formattedHistory = chatHistory
+    .map((msg: any) => `${msg.role.toUpperCase()}: ${msg.content}`)
+    .join("\n")
 
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
     async start(controller) {
       let closed = false
-      const safeClose = () => {
-        if (closed) return
-        closed = true
-        try { controller.close() } catch {}
-      }
+      const safeClose = () => { if (!closed) { closed = true; try { controller.close() } catch {} } }
 
       try {
+        // PASS THE req.signal HERE SO LANGGRAPH KNOWS WHEN TO STOP!
         const events = await graph.streamEvents(
-          {
-            supervisorRequest: body.prompt ?? "",
-            mailingCSV: body.csv ?? "",
-            humanFeedback: body.feedbackLog ?? "" 
-          },
-          { version: "v2" }
+          { chatHistory: formattedHistory, csvData: csvData ?? "" },
+          { version: "v2", signal: req.signal } 
         )
 
         for await (const event of events) {
@@ -39,30 +29,23 @@ export async function POST(req: Request) {
 
           if (event.event === "on_chat_model_stream") {
             const chunk = event.data?.chunk?.content
-
-            if (chunk && ["marketingNode", "mailingNode", "schedulerNode"].includes(event.name)) {
+            if (chunk && ["supervisorNode", "marketingNode", "mailingNode", "schedulerNode"].includes(event.name)) {
               const payload = JSON.stringify({ node: event.name, text: chunk })
-              try {
-                controller.enqueue(encoder.encode(`data: ${payload}\n\n`))
-              } catch {
-                safeClose()
-                break
-              }
+              controller.enqueue(encoder.encode(`data: ${payload}\n\n`))
             }
           }
         }
-
-        if (!closed) {
-          try { controller.enqueue(encoder.encode(`data: [DONE]\n\n`)) } catch {}
-          safeClose()
-        }
-      } catch (error) {
+        controller.enqueue(encoder.encode(`data: [DONE]\n\n`))
         safeClose()
+      } catch (error: any) {
+        // If the user aborts, gracefully close the stream
+        if (error.name === "AbortError" || error.message.includes("abort")) {
+          console.log("Stream stopped by user.")
+        }
+        safeClose() 
       }
     }
   })
 
-  return new Response(stream, {
-    headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive" }
-  })
+  return new Response(stream, { headers: { "Content-Type": "text/event-stream" } })
 }
