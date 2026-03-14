@@ -29,7 +29,7 @@ export async function POST(req: Request) {
           {
             supervisorRequest: body.prompt ?? "",
             mailingCSV: body.csv ?? "",
-            humanFeedback: body.feedbackLog ?? "" // Pass the accumulated feedback to the graph
+            humanFeedback: body.feedbackLog ?? "" 
           },
           { version: "v2" }
         )

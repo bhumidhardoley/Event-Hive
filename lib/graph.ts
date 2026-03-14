@@ -1,7 +1,7 @@
-
 import { Annotation, StateGraph, START, END } from "@langchain/langgraph"
 import { ChatOllama } from "@langchain/ollama"
 
+// Initialize your local Qwen model
 const model = new ChatOllama({
   model: "qwen2.5",
   temperature: 0.2
@@ -11,7 +11,6 @@ export const State = Annotation.Root({
   supervisorRequest: Annotation<string>(),
   mailingCSV: Annotation<string>(),
   
-  // NEW: Store all human feedback to keep context in sync
   humanFeedback: Annotation<string>({
     reducer: (x, y) => y ?? x,
     default: () => ""
@@ -28,26 +27,17 @@ export const State = Annotation.Root({
 
 type AgentState = typeof State.State
 
-/* SUPERVISOR AGENT */
 const supervisorAgent = async (state: AgentState) => {
   const res = await model.invoke([
     {
       role: "system",
       content: `
-You are an AI supervisor coordinating three specialized agents: Marketing, Email Outreach, and Event Scheduler.
-
+You are an AI supervisor coordinating specialized agents for an event.
 Your job is ONLY to analyze the user request and assign tasks.
 
 IMPORTANT RULES:
 - ONLY assign tasks to the agents.
-- Return STRICT JSON ONLY. No markdown.
-
-Format:
-{
- "marketing": "task for marketing agent",
- "mailing": "task for email agent",
- "scheduler": "task for scheduler agent"
-}
+- Return STRICT JSON ONLY. No markdown, no conversational text.
 
 ORIGINAL USER REQUEST:
 ${state.supervisorRequest}
@@ -56,6 +46,13 @@ LATEST HUMAN CORRECTIONS (CRITICAL - OVERRIDE PREVIOUS FACTS):
 ${state.humanFeedback ? state.humanFeedback : "None yet."}
 
 Instructions: If the human corrections mention a date change, new constraint, or specific detail, you MUST include that updated detail in the tasks for ALL relevant agents so they stay in sync.
+
+Format:
+{
+ "marketing": "task for marketing agent",
+ "mailing": "task for email agent",
+ "scheduler": "task for scheduler agent"
+}
 `
     }
   ], { runName: "supervisorNode" })
@@ -84,29 +81,23 @@ Instructions: If the human corrections mention a date change, new constraint, or
   }
 }
 
-// ... Keep your marketingAgent, mailingAgent, and schedulerAgent exactly as they were ...
-
-/*
-MARKETING AGENT
-*/
 const marketingAgent = async (state: AgentState) => {
   const res = await model.invoke([
     {
       role: "system",
       content: `
 You are THE CONTENT STRATEGIST & SOCIAL MEDIA AGENT.
-Role: You act as the marketing lead. 
-Responsibilities: Generate the promotional copy, suggest a series of posts to build hype, analyze historical engagement data to recommend optimal release times, and queue the content for execution.
+Role: You act as the marketing lead. Generate the promotional copy, suggest a series of posts to build hype, and recommend optimal release times.
 
 Task:
 ${state.marketingInput}
 
 STRICT INSTRUCTIONS:
 - Be incredibly concise. 
-- DO NOT use conversational filler (e.g., "Here is your plan", "Sure!").
+- DO NOT use conversational filler.
 - Output your plan using STRICT bullet points only.
 - Limit: Maximum 100 words.
-- Do not invent unnecessary details or hallucinate events.
+- Do not invent unnecessary details.
 `
     }
   ], { runName: "marketingNode" })
@@ -116,27 +107,22 @@ STRICT INSTRUCTIONS:
   }
 }
 
-/*
-MAILING AGENT
-*/
 const mailingAgent = async (state: AgentState) => {
   const res = await model.invoke([
     {
       role: "system",
       content: `
 You are THE COMMUNICATIONS & TARGETED MAILING AGENT.
-Role: Streamlines participant outreach. 
-Responsibilities: You receive an event registration sheet (CSV/Excel) and a base email draft. You autonomously extract and validate emails, dynamically personalize the draft for each recipient using data from the sheet, and handle the automated bulk distribution to segmented groups.
+Role: Streamlines participant outreach. Autonomously extract and validate emails, dynamically personalize the draft, and handle automated bulk distribution.
 
 Task:
 ${state.mailingInput}
 
 STRICT INSTRUCTIONS:
-- Rely ONLY on the provided participant data. Do NOT make up fake emails or names.
+- Rely ONLY on the provided participant data. Do NOT make up fake emails.
 - DO NOT use conversational filler.
 - Output your strategy using STRICT bullet points only.
 - Limit: Maximum 100 words.
-- Be direct and professional.
 `
     }
   ], { runName: "mailingNode" })
@@ -146,26 +132,21 @@ STRICT INSTRUCTIONS:
   }
 }
 
-/*
-SCHEDULER AGENT
-*/
 const schedulerAgent = async (state: AgentState) => {
   const res = await model.invoke([
     {
       role: "system",
       content: `
 You are THE DYNAMIC SCHEDULER & CONFLICT RESOLVER AGENT.
-Role: Manages the master timeline. 
-Responsibilities: You take rough constraints and build the schedule. If a new constraint is introduced, autonomously recalculate the entire schedule, resolve new clashes, and define triggers for the email agent to notify participants of changes.
+Role: Manages the master timeline. Build the schedule, calculate constraints, and resolve clashes.
 
 Task:
 ${state.schedulerInput}
 
 STRICT INSTRUCTIONS:
 - DO NOT use conversational filler.
-- Output the timeline and conflict resolution using STRICT bullet points only.
+- Output the timeline using STRICT bullet points only.
 - Limit: Maximum 100 words.
-- Do not hallucinate constraints that the user did not provide.
 `
     }
   ], { runName: "schedulerNode" })
@@ -180,6 +161,7 @@ export const graph = new StateGraph(State)
   .addNode("marketingNode", marketingAgent)
   .addNode("mailingNode", mailingAgent)
   .addNode("schedulerNode", schedulerAgent)
+  
   .addEdge(START, "supervisorNode")
   .addEdge("supervisorNode", "marketingNode")
   .addEdge("marketingNode", "mailingNode")

@@ -14,10 +14,12 @@ interface AgentInputs {
   mailingData: MailingEntry[]
 }
 
+// Updated to include posterImage
 interface AgentOutputs {
   marketingOutput: string
   mailingOutput: string
   schedulerOutput: string
+  posterImage: string 
 }
 
 interface AgentContextType {
@@ -35,10 +37,12 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     mailingData: []
   })
 
+  // Initialize posterImage
   const [outputs, setOutputs] = useState<AgentOutputs>({
     marketingOutput: "",
     mailingOutput: "",
-    schedulerOutput: ""
+    schedulerOutput: "",
+    posterImage: "" 
   })
 
   return (
