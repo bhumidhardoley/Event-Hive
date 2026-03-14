@@ -114,7 +114,6 @@ function FinalContent() {
       })
 
       setLocalMailingData(parsedData)
-      alert(`Successfully loaded ${parsedData.length} recipients from your new CSV!`)
     }
     reader.readAsText(file)
   }
