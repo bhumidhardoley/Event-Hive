@@ -24,9 +24,10 @@ export default function DashboardChat() {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   
-  // New State for toggling the WhatsApp card open/closed
-  const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false)
+  // NEW: State to track exactly which agent is currently streaming
+  const [currentStreamingNode, setCurrentStreamingNode] = useState<string | null>(null)
   
+  const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false)
   const [history, setHistory] = useState<DBHistoryItem[]>([])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -69,6 +70,7 @@ export default function DashboardChat() {
     setUploadedFileName(null)
     setInputValue("")
     setIsWhatsAppOpen(false)
+    setCurrentStreamingNode(null)
   }
 
   const deleteHistoryItem = async (e: React.MouseEvent, idToRemove: string) => {
@@ -96,6 +98,7 @@ export default function DashboardChat() {
       abortControllerRef.current = null
     }
     setIsTyping(false)
+    setCurrentStreamingNode(null)
   }
 
   const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -155,9 +158,9 @@ export default function DashboardChat() {
     setInputValue("")
     setIsTyping(true)
     setSwarmComplete(false)
-    setIsWhatsAppOpen(false) // Close the card if they message again
+    setIsWhatsAppOpen(false) 
+    setCurrentStreamingNode(null) // Reset active node tracking
 
-    // ADDED whatsappOutput to reset
     setOutputs({ marketingOutput: "", mailingOutput: "", schedulerOutput: "", whatsappOutput: "", posterImage: "" })
 
     if (textareaRef.current) {
@@ -202,7 +205,9 @@ export default function DashboardChat() {
           try {
             const parsed = JSON.parse(data)
             
-            // ADDED whatsappNode to streaming check
+            // Update the state so the UI knows exactly who is typing
+            setCurrentStreamingNode(parsed.node)
+
             if (["marketingNode", "mailingNode", "schedulerNode", "whatsappNode"].includes(parsed.node)) {
               agentsRanThisTurn = true
             }
@@ -225,7 +230,7 @@ export default function DashboardChat() {
               if (parsed.node === "marketingNode") next.marketingOutput += parsed.text
               if (parsed.node === "mailingNode") next.mailingOutput += parsed.text
               if (parsed.node === "schedulerNode") next.schedulerOutput += parsed.text
-              if (parsed.node === "whatsappNode") next.whatsappOutput += parsed.text // Stream WhatsApp text
+              if (parsed.node === "whatsappNode") next.whatsappOutput += parsed.text 
               return next
             })
 
@@ -240,6 +245,7 @@ export default function DashboardChat() {
       }
     } finally {
       setIsTyping(false)
+      setCurrentStreamingNode(null) // Clear status when done
       abortControllerRef.current = null
       
       if (agentsRanThisTurn) {
@@ -279,7 +285,7 @@ export default function DashboardChat() {
           marketingOutput: outputs.marketingOutput,
           mailingOutput: outputs.mailingOutput,
           schedulerOutput: outputs.schedulerOutput,
-          whatsappOutput: outputs.whatsappOutput, // Save WhatsApp output
+          whatsappOutput: outputs.whatsappOutput, 
           chatHistory: inputs.chatHistory
         })
       })
@@ -380,10 +386,9 @@ export default function DashboardChat() {
         )}
       </aside>
 
-      {/* CHAT INTERFACE - NOW CENTERED & FIXED WIDTH */}
+      {/* CHAT INTERFACE */}
       <div className="flex-1 flex flex-col h-full bg-slate-50">
         <div className="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center">
-          {/* This max-w-3xl div is what locks everything to the center just like Gemini */}
           <div className="w-full max-w-3xl space-y-6 pb-6">
             
             {inputs.chatHistory.map((msg, i) => {
@@ -391,7 +396,7 @@ export default function DashboardChat() {
               const agentUI = getAgentLabel(msg.role)
               const displayContent = msg.content.replace(/###START_SWARM###(?:\|.*)?/g, "*(Initiating Swarm...)*");
 
-              // If it's the WhatsApp node, we hide it from the main flow because we show it in the custom card below
+              // Hide WhatsApp node from main flow
               if (msg.role === "whatsappNode") return null;
 
               return (
@@ -401,7 +406,6 @@ export default function DashboardChat() {
                       {agentUI.name}
                     </span>
                   )}
-                  {/* Bubbles span up to 85% of the centered column width */}
                   <div className={`max-w-[85%] rounded-2xl p-4 shadow-sm ${isUser ? "bg-slate-900 text-white" : "bg-white border border-slate-200 text-slate-800"}`}>
                     <div className={`prose prose-sm ${isUser ? "prose-invert" : ""} max-w-none break-words whitespace-pre-wrap overflow-x-hidden`}>
                       <ReactMarkdown>{displayContent}</ReactMarkdown>
@@ -411,10 +415,14 @@ export default function DashboardChat() {
               )
             })}
             
-            {isTyping && (
+            {/* UPDATED LOADING UI */}
+            {isTyping && (!currentStreamingNode || currentStreamingNode === "whatsappNode") && (
                <div className="flex items-start">
-                 <span className="bg-white border border-slate-200 text-slate-400 text-xs px-4 py-2 rounded-full shadow-sm animate-pulse">
-                   Agents are typing...
+                 <span className="bg-white border border-slate-200 text-slate-500 text-xs font-medium px-4 py-2 rounded-full shadow-sm animate-pulse flex items-center gap-2">
+                   <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                   {!currentStreamingNode 
+                     ? "Agents are thinking..." 
+                     : "Generating WhatsApp text..."}
                  </span>
                </div>
             )}
@@ -427,7 +435,6 @@ export default function DashboardChat() {
                   className="w-full px-5 py-4 flex justify-between items-center bg-emerald-100/50 hover:bg-emerald-100 text-emerald-900 font-bold text-sm transition-colors"
                 >
                   <span className="flex items-center gap-2">
-                    {/* WhatsApp Icon */}
                     <svg className="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 21.042c-1.571 0-3.11-.424-4.453-1.229l-.32-.191-3.308.867.882-3.226-.21-.334c-.886-1.408-1.353-3.037-1.353-4.721 0-4.908 3.996-8.904 8.905-8.904 2.379 0 4.616.927 6.297 2.61a8.857 8.857 0 012.607 6.297c0 4.907-3.996 8.904-8.905 8.904h-.001a8.865 8.865 0 01-.141-.073zm.142-16.353c-4.102 0-7.443 3.34-7.443 7.442 0 1.312.343 2.592.996 3.723l.149.256-.526 1.926 1.97-.517.246.146c1.093.649 2.333.99 3.608.991h.001c4.102 0 7.442-3.341 7.442-7.442a7.404 7.404 0 00-2.18-5.262 7.399 7.399 0 00-5.263-2.18zm3.805 10.165c-.208-.105-1.233-.609-1.424-.679-.191-.07-.33-.105-.469.104-.139.208-.538.679-.66.818-.121.14-.243.157-.451.053-.208-.105-.88-.324-1.676-1.036-.618-.553-1.036-1.236-1.157-1.445-.121-.208-.013-.321.092-.425.093-.093.208-.244.312-.366.104-.121.139-.208.208-.347.07-.139.035-.261-.018-.365-.052-.104-.469-1.13-.642-1.547-.168-.403-.339-.348-.469-.355h-.401c-.139 0-.365.052-.556.261-.191.208-.73.712-.73 1.737 0 1.025.747 2.016.851 2.155.104.139 1.47 2.245 3.563 3.149.498.215.886.343 1.189.44.5.158.955.135 1.313.082.404-.06 1.233-.504 1.406-.991.174-.486.174-.903.121-.991-.052-.088-.191-.14-.4-.245z"></path></svg>
                     WhatsApp Invite Ready
                   </span>
@@ -439,7 +446,6 @@ export default function DashboardChat() {
                     <div className="prose prose-sm text-emerald-900 whitespace-pre-wrap bg-white p-4 rounded-xl border border-emerald-100 shadow-sm">
                       <ReactMarkdown>{outputs.whatsappOutput}</ReactMarkdown>
                     </div>
-                    {/* Share Button using Official WhatsApp URI scheme */}
                     <a 
                       href={`https://wa.me/?text=${encodeURIComponent(outputs.whatsappOutput)}`} 
                       target="_blank" 
@@ -457,11 +463,10 @@ export default function DashboardChat() {
           </div>
         </div>
 
-        {/* FIXED BOTTOM INPUT AREA - NOW CENTERED */}
+        {/* INPUT AREA */}
         <div className="w-full bg-slate-50 border-t border-slate-200 pt-4 pb-6 px-4 md:px-8 shrink-0 flex justify-center">
           <div className="w-full max-w-3xl flex flex-col">
             
-            {/* CSV Attachment pill */}
             {uploadedFileName && (
               <div className="flex items-center gap-2 bg-slate-200 w-max px-3 py-1.5 rounded-t-lg text-xs font-medium text-slate-700 ml-4 border border-slate-300 border-b-0">
                 <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
@@ -506,7 +511,6 @@ export default function DashboardChat() {
               </div>
             </div>
 
-            {/* Finish Button Centered Below Input */}
             {swarmComplete && !isTyping && (
               <div className="mt-4 flex justify-center">
                 <button 
