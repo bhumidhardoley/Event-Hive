@@ -11,19 +11,20 @@ export interface MailingEntry {
 
 export interface ChatMessage {
   id: string
-  role: "user" | "supervisor" | "marketingNode" | "mailingNode" | "schedulerNode" | "system"
+  role: "user" | "supervisor" | "marketingNode" | "mailingNode" | "schedulerNode" | "whatsappNode" | "system"
   content: string
 }
 
 interface AgentInputs {
   mailingData: MailingEntry[]
-  chatHistory: ChatMessage[] // <-- NEW
+  chatHistory: ChatMessage[]
 }
 
 interface AgentOutputs {
   marketingOutput: string
   mailingOutput: string
   schedulerOutput: string
+  whatsappOutput: string // <-- NEW
   posterImage: string
 }
 
@@ -48,6 +49,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     marketingOutput: "",
     mailingOutput: "",
     schedulerOutput: "",
+    whatsappOutput: "", // <-- NEW
     posterImage: ""
   })
 

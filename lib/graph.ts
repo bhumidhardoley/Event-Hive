@@ -4,17 +4,18 @@ import { ChatOllama } from "@langchain/ollama"
 const model = new ChatOllama({ model: "qwen2.5", temperature: 0.1 })
 
 export const State = Annotation.Root({
-  chatHistory: Annotation<string>(), // Formatted chat log
+  chatHistory: Annotation<string>(),
   csvData: Annotation<string>(),
-  
-  // Dynamic Routing State
+  eventName: Annotation<string>({ reducer: (x, y) => y ?? x, default: () => "Untitled Event" }),
+
   nextAgents: Annotation<string[]>({ reducer: (x, y) => y ?? x, default: () => [] }),
   isSwarmDone: Annotation<boolean>({ reducer: (x, y) => y ?? x, default: () => false }),
 
   // Outputs
   marketingOutput: Annotation<string>({ reducer: (x, y) => y ?? x, default: () => "" }),
   mailingOutput: Annotation<string>({ reducer: (x, y) => y ?? x, default: () => "" }),
-  schedulerOutput: Annotation<string>({ reducer: (x, y) => y ?? x, default: () => "" })
+  schedulerOutput: Annotation<string>({ reducer: (x, y) => y ?? x, default: () => "" }),
+  whatsappOutput: Annotation<string>({ reducer: (x, y) => y ?? x, default: () => "" }) // <-- NEW
 })
 
 type AgentState = typeof State.State
@@ -28,8 +29,8 @@ Your goal is to collect 3 parameters from the user: 1) Event Name/Theme, 2) Targ
 
 Analyze the chat history. 
 If ANY information is missing, reply to the user conversationally to ask for it. DO NOT USE JSON. Just write a normal message.
-If ALL 3 parameters are present, you MUST start your response with the exact text: ###START_SWARM###
-(Example: "###START_SWARM### Perfect! I have all the details. I am starting the team now.")
+If ALL 3 parameters are present, you MUST start your response with the exact text: ###START_SWARM###| followed immediately by the extracted Event Name.
+(Example: "###START_SWARM###|Tech Innovators 2026")
 
 Chat History:
 ${state.chatHistory}`
@@ -38,66 +39,58 @@ ${state.chatHistory}`
 
   const reply = String(res.content)
   const isReady = reply.includes("###START_SWARM###")
+  
+  let extractedName = "Untitled Event"
+  if (isReady) {
+    const parts = reply.split("###START_SWARM###|")
+    if (parts.length > 1) extractedName = parts[1].split("\n")[0].trim()
+  }
 
   return {
-    // If we are NOT ready, we end the graph run here and wait for the user to reply again.
     isSwarmDone: !isReady, 
-    // If we ARE ready, we queue up the agents!
-    nextAgents: isReady ? ["marketingNode", "mailingNode", "schedulerNode"] : []
+    // Added whatsappNode to the queue!
+    nextAgents: isReady ? ["marketingNode", "mailingNode", "schedulerNode", "whatsappNode"] : [],
+    eventName: extractedName 
   }
 }
 
+// ... Keep your marketingAgent, mailingAgent, and schedulerAgent the same ...
 const marketingAgent = async (state: AgentState) => {
-  const res = await model.invoke([
-    { 
-      role: "system", 
-      content: `You are the Marketing Agent. Write 100 words of promotional copy based on the event details in the chat.
-      CRITICAL INSTRUCTION: Pay special attention to the LATEST USER MESSAGE in the history. If the user provided a correction or interrupted you to change something, you MUST follow their latest instruction.
-      
-      Context History:
-      ${state.chatHistory}` 
-    }
-  ], { runName: "marketingNode" })
+  const res = await model.invoke([{ role: "system", content: `You are the Marketing Agent. Write 100 words of promotional copy based on the event details in the chat.\nCRITICAL INSTRUCTION: Pay special attention to the LATEST USER MESSAGE in the history. If the user provided a correction or interrupted you to change something, you MUST follow their latest instruction.\n\nContext History:\n${state.chatHistory}` }], { runName: "marketingNode" })
   return { marketingOutput: String(res.content) }
 }
 
 const mailingAgent = async (state: AgentState) => {
-  const res = await model.invoke([
-    { 
-      role: "system", 
-      content: `You are the Mailing Agent. Draft an email template based on the event details.
-      CRITICAL INSTRUCTION: Pay special attention to the LATEST USER MESSAGE in the history. If the user provided a correction or interrupted you to change something, you MUST follow their latest instruction.
-      
-      CSV Data:\n${state.csvData}
-      
-      Context History:
-      ${state.chatHistory}` 
-    }
-  ], { runName: "mailingNode" })
+  const res = await model.invoke([{ role: "system", content: `You are the Mailing Agent. Draft an email template based on the event details.\nCRITICAL INSTRUCTION: Pay special attention to the LATEST USER MESSAGE in the history. If the user provided a correction or interrupted you to change something, you MUST follow their latest instruction.\n\nCSV Data:\n${state.csvData}\n\nContext History:\n${state.chatHistory}` }], { runName: "mailingNode" })
   return { mailingOutput: String(res.content) }
 }
 
 const schedulerAgent = async (state: AgentState) => {
+  const res = await model.invoke([{ role: "system", content: `You are the Scheduler Agent. Create a bulleted timeline.\nCRITICAL INSTRUCTION: Pay special attention to the LATEST USER MESSAGE in the history. If the user provided a correction or interrupted you to change something, you MUST follow their latest instruction.\n\nContext History:\n${state.chatHistory}` }], { runName: "schedulerNode" })
+  return { schedulerOutput: String(res.content) }
+}
+
+// NEW: WhatsApp Agent
+const whatsappAgent = async (state: AgentState) => {
   const res = await model.invoke([
     { 
       role: "system", 
-      content: `You are the Scheduler Agent. Create a bulleted timeline.
-      CRITICAL INSTRUCTION: Pay special attention to the LATEST USER MESSAGE in the history. If the user provided a correction or interrupted you to change something, you MUST follow their latest instruction.
+      content: `You are the WhatsApp Agent. Write a WhatsApp-friendly message to invite people to the event.
+      Analyze the context to determine if this is a personal event (use a friendly, warm tone with emojis) or an official/corporate event (use a professional, polite, and clean tone).
+      Use WhatsApp formatting like *bold* for emphasis. Keep it relatively concise.
       
       Context History:
       ${state.chatHistory}` 
     }
-  ], { runName: "schedulerNode" })
-  return { schedulerOutput: String(res.content) }
+  ], { runName: "whatsappNode" })
+  return { whatsappOutput: String(res.content) }
 }
 
-// DYNAMIC ROUTER
 const dynamicRouter = (state: AgentState) => {
   if (state.isSwarmDone || state.nextAgents.length === 0) return END;
-  return state.nextAgents[0]; // Go to the first agent in the queue
+  return state.nextAgents[0]; 
 }
 
-// POST-AGENT QUEUE MANAGER
 const shiftQueue = (state: AgentState) => {
   const remaining = state.nextAgents.slice(1);
   return { nextAgents: remaining, isSwarmDone: remaining.length === 0 };
@@ -108,19 +101,14 @@ export const graph = new StateGraph(State)
   .addNode("marketingNode", marketingAgent)
   .addNode("mailingNode", mailingAgent)
   .addNode("schedulerNode", schedulerAgent)
-  .addNode("queueManager", async (state) => shiftQueue(state)) // Invisible node to manage state
+  .addNode("whatsappNode", whatsappAgent) // Add new node
+  .addNode("queueManager", async (state) => shiftQueue(state))
 
   .addEdge(START, "supervisorNode")
-  
-  // After Supervisor, either end (reply) or route to the first agent
   .addConditionalEdges("supervisorNode", (state) => state.isSwarmDone ? END : dynamicRouter(state))
-  
-  // After any agent runs, they go to the Queue Manager
   .addEdge("marketingNode", "queueManager")
   .addEdge("mailingNode", "queueManager")
   .addEdge("schedulerNode", "queueManager")
-
-  // Queue Manager routes to the next agent, or ends
+  .addEdge("whatsappNode", "queueManager") // Add new edge
   .addConditionalEdges("queueManager", dynamicRouter)
-  
   .compile()

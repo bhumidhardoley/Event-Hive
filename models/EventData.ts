@@ -1,13 +1,34 @@
-// models/EventData.ts
-import mongoose from 'mongoose'
 
-const EventDataSchema = new mongoose.Schema({
-  sessionId: { type: String, required: true, unique: true },
-  marketingOutput: { type: String, default: "" },
-  mailingOutput: { type: String, default: "" },
-  schedulerOutput: { type: String, default: "" },
-  chatHistory: { type: Array, default: [] }
-}, { timestamps: true })
+import mongoose, { Schema, Document } from "mongoose";
 
-// This prevents Mongoose from recompiling the model upon hot-reloads
-export default mongoose.models.EventData || mongoose.model('EventData', EventDataSchema)
+// Define the TypeScript interface for the data
+export interface IEventData extends Document {
+  sessionId: string;
+  eventName: string;
+  marketingOutput: string;
+  mailingOutput: string;
+  schedulerOutput: string;
+  whatsappOutput: string; // <-- Added this
+  chatHistory: any[]; 
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Define the Mongoose Schema
+const EventDataSchema = new Schema<IEventData>(
+  {
+    sessionId: { type: String, required: true, unique: true },
+    eventName: { type: String, default: "Untitled Event" },
+    marketingOutput: { type: String, default: "" },
+    mailingOutput: { type: String, default: "" },
+    schedulerOutput: { type: String, default: "" },
+    whatsappOutput: { type: String, default: "" }, // <-- Added this
+    chatHistory: { type: Schema.Types.Mixed, default: [] },
+  },
+  { timestamps: true }
+);
+
+// This checks if the model already exists (important for Next.js hot-reloading)
+const EventData = mongoose.models.EventData || mongoose.model<IEventData>("EventData", EventDataSchema);
+
+export default EventData;

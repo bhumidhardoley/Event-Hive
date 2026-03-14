@@ -1,4 +1,3 @@
-// app/api/events/route.ts
 import { NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import EventData from "@/models/EventData"
@@ -7,12 +6,29 @@ export async function POST(req: Request) {
   try {
     await dbConnect()
     const body = await req.json()
-    const { sessionId, marketingOutput, mailingOutput, schedulerOutput, chatHistory } = body
+    
+    // 1. We extract whatsappOutput from the incoming request body
+    const { 
+      sessionId, 
+      eventName, 
+      marketingOutput, 
+      mailingOutput, 
+      schedulerOutput, 
+      whatsappOutput, // <-- Added this
+      chatHistory 
+    } = body
 
-    // Create or update the event data for this session
+    // 2. We pass it into the database update function
     const event = await EventData.findOneAndUpdate(
       { sessionId },
-      { marketingOutput, mailingOutput, schedulerOutput, chatHistory },
+      { 
+        eventName, 
+        marketingOutput, 
+        mailingOutput, 
+        schedulerOutput, 
+        whatsappOutput, // <-- Added this
+        chatHistory 
+      },
       { new: true, upsert: true }
     )
 
@@ -33,6 +49,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Missing sessionId" }, { status: 400 })
     }
 
+    // This will now automatically pull the whatsappOutput field too
     const event = await EventData.findOne({ sessionId })
     return NextResponse.json({ success: true, event })
   } catch (error) {
