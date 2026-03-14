@@ -1,22 +1,14 @@
 "use client"
-
 import { createContext, useContext, useState, ReactNode } from "react"
-
-export interface MailingEntry {
-  id?: string | number
-  email?: string
-  name?: string
-  [key: string]: unknown
-}
 
 export interface ChatMessage {
   id: string
-  role: "user" | "supervisor" | "marketingNode" | "mailingNode" | "schedulerNode" | "whatsappNode" | "system"
+  role: "user" | "supervisor" | "marketingNode" | "mailingNode" | "schedulerNode" | "whatsappNode" | "system" | "supervisorNode"
   content: string
 }
 
 interface AgentInputs {
-  mailingData: MailingEntry[]
+  mailingData: any[]
   chatHistory: ChatMessage[]
 }
 
@@ -24,7 +16,7 @@ interface AgentOutputs {
   marketingOutput: string
   mailingOutput: string
   schedulerOutput: string
-  whatsappOutput: string // <-- NEW
+  whatsappOutput: string 
   posterImage: string
 }
 
@@ -41,7 +33,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [inputs, setInputs] = useState<AgentInputs>({
     mailingData: [],
     chatHistory: [
-      { id: "1", role: "supervisor", content: "Hello! I am the Event Hive Supervisor. To get started, what kind of event are you hosting? Please provide the event name, target audience, and general timeframe." }
+      { id: "1", role: "supervisor", content: "Hello! I am the Event Hive Supervisor. What event are we planning today?" }
     ]
   })
 
@@ -49,7 +41,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     marketingOutput: "",
     mailingOutput: "",
     schedulerOutput: "",
-    whatsappOutput: "", // <-- NEW
+    whatsappOutput: "",
     posterImage: ""
   })
 

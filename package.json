@@ -12,6 +12,8 @@
     "@huggingface/inference": "^4.13.15",
     "@langchain/langgraph": "^1.2.2",
     "@langchain/ollama": "^1.2.6",
+    "@tailwindcss/typography": "^0.5.19",
+    "mongoose": "^9.3.0",
     "next": "16.1.6",
     "papaparse": "^5.5.3",
     "react": "19.2.3",

@@ -7,6 +7,12 @@ import ReactMarkdown from "react-markdown"
 
 type AgentType = "marketing" | "mailing" | "scheduler"
 
+// Helper to strip out the ```markdown blocks the AI sometimes adds
+const cleanMarkdown = (text: string) => {
+  if (!text) return "";
+  return text.replace(/^```(markdown|md|html)?\n?/gi, "").replace(/```$/g, "").trim();
+};
+
 function AnswersContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -18,7 +24,6 @@ function AnswersContent() {
   const [prompts, setPrompts] = useState({ marketing: "", mailing: "", scheduler: "" })
   const [loading, setLoading] = useState({ marketing: false, mailing: false, scheduler: false, sync: false, fetch: true, finalize: false })
 
-  // Fetch Current Event Data on mount
   useEffect(() => {
     if (sessionId) {
       fetch(`/api/events?sessionId=${sessionId}`)
@@ -26,9 +31,10 @@ function AnswersContent() {
         .then(data => {
           if (data.success && data.event) {
             setOutputs({
-              marketingOutput: data.event.marketingOutput,
-              mailingOutput: data.event.mailingOutput,
-              schedulerOutput: data.event.schedulerOutput
+              // Clean the outputs immediately when fetching from the database
+              marketingOutput: cleanMarkdown(data.event.marketingOutput),
+              mailingOutput: cleanMarkdown(data.event.mailingOutput),
+              schedulerOutput: cleanMarkdown(data.event.schedulerOutput)
             })
           }
           setLoading(prev => ({ ...prev, fetch: false }))
@@ -66,7 +72,8 @@ function AnswersContent() {
       })
       const data = await res.json()
       if (data.updatedText) {
-        setOutputs(prev => ({ ...prev, [`${agent}Output`]: data.updatedText }))
+        // Clean the newly generated text before saving it
+        setOutputs(prev => ({ ...prev, [`${agent}Output`]: cleanMarkdown(data.updatedText) }))
         setPrompts(prev => ({ ...prev, [agent]: "" })) 
       }
     } catch (e) {
@@ -87,9 +94,9 @@ function AnswersContent() {
       const data = await res.json()
       if (data.syncedOutputs) {
         setOutputs({
-          marketingOutput: data.syncedOutputs.marketing,
-          mailingOutput: data.syncedOutputs.mailing,
-          schedulerOutput: data.syncedOutputs.scheduler,
+          marketingOutput: cleanMarkdown(data.syncedOutputs.marketing),
+          mailingOutput: cleanMarkdown(data.syncedOutputs.mailing),
+          schedulerOutput: cleanMarkdown(data.syncedOutputs.scheduler),
         })
       }
     } catch (e) {
@@ -180,12 +187,12 @@ function AnswersContent() {
                   {editing[agent.key] ? (
                     <textarea 
                       className="w-full h-80 p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-900 outline-none text-sm text-slate-700 resize-y whitespace-pre-wrap break-words"
-                      value={outputs[`${agent.key}Output`]}
+                      value={cleanMarkdown(outputs[`${agent.key}Output`])}
                       onChange={(e) => handleManualEdit(agent.key, e.target.value)}
                     />
                   ) : (
                     <div className="prose prose-sm max-w-none text-slate-800 h-80 overflow-y-auto pr-2 break-words whitespace-pre-wrap overflow-x-hidden">
-                      <ReactMarkdown>{outputs[`${agent.key}Output`] || "*No output generated yet.*"}</ReactMarkdown>
+                      <ReactMarkdown>{cleanMarkdown(outputs[`${agent.key}Output`]) || "*No output generated yet.*"}</ReactMarkdown>
                     </div>
                   )}
                 </div>
