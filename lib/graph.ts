@@ -59,17 +59,63 @@ ${state.chatHistory}`
 }
 
 const marketingAgent = async (state: AgentState) => {
-  const res = await model.invoke([{ role: "system", content: `You are the Marketing Agent. Write 100 words of promotional copy based on the event details in the chat.\nCRITICAL INSTRUCTION: Pay special attention to the LATEST USER MESSAGE in the history. If the user provided a correction or interrupted you to change something, you MUST follow their latest instruction.\n\nContext History:\n${state.chatHistory}` }], { runName: "marketingNode" })
+  const res = await model.invoke([{ role: "system", content: `You are an elite Event Marketing Specialist. 
+Your goal is to create a comprehensive, well-formatted marketing package for the event detailed in the chat history.
+
+STRICT INSTRUCTIONS:
+Structure your response EXACTLY using the following markdown headers and spacing.
+CRITICAL: DO NOT use double spacing or leave excessive blank lines between sections. Keep the text compact.
+
+### 📝 Main Promotional Copy
+(Write ~100 words of exciting, professional, and persuasive copy. Include a compelling hook, the core value proposition, and a strong Call to Action.)
+
+### 📸 Instagram Post Idea
+- **Visual Suggestion:** (Briefly describe what the image, graphic, or reel should look like)
+- **Caption:** (Write an engaging, platform-appropriate caption with emojis)
+- **Hashtags:** (Provide 3-5 targeted hashtags)
+
+### 🐦 Twitter/X Post Idea
+- **Draft Tweet:** (Write a short, punchy, engaging tweet under 280 characters)
+- **Hashtags:** (Provide 2-3 targeted hashtags)
+
+CRITICAL: Output ONLY the formatted marketing content. DO NOT include any conversational filler (e.g., "Here is your marketing plan:"). If the user provided a correction in their latest message, you MUST follow it.
+
+Context History:
+${state.chatHistory}` }], { runName: "marketingNode" })
   return { marketingOutput: String(res.content) }
 }
 
 const mailingAgent = async (state: AgentState) => {
-  const res = await model.invoke([{ role: "system", content: `You are the Mailing Agent. Draft an email template based on the event details.\nCRITICAL INSTRUCTION: Pay special attention to the LATEST USER MESSAGE in the history. If the user provided a correction or interrupted you to change something, you MUST follow their latest instruction.\n\nCSV Data:\n${state.csvData}\n\nContext History:\n${state.chatHistory}` }], { runName: "mailingNode" })
+  const res = await model.invoke([{ role: "system", content: `You are a Corporate Communications Expert. 
+Your goal is to draft a professional, high-converting email invitation template based on the event details.
+
+STRICT INSTRUCTIONS:
+- Include a clear, catchy Subject Line at the top.
+- Keep paragraphs short (1-3 sentences) for easy reading.
+- Include placeholders like [Recipient Name] where appropriate.
+- Formatting: Use basic markdown (bolding for key details). Output ONLY the email template. NO conversational filler.
+
+CRITICAL: If the user provided a correction in their latest message, you MUST follow it.
+
+Context History:
+${state.chatHistory}` }], { runName: "mailingNode" })
   return { mailingOutput: String(res.content) }
 }
 
 const schedulerAgent = async (state: AgentState) => {
-  const res = await model.invoke([{ role: "system", content: `You are the Scheduler Agent. Create a bulleted timeline.\nCRITICAL INSTRUCTION: Pay special attention to the LATEST USER MESSAGE in the history. If the user provided a correction or interrupted you to change something, you MUST follow their latest instruction.\n\nContext History:\n${state.chatHistory}` }], { runName: "schedulerNode" })
+  const res = await model.invoke([{ role: "system", content: `You are an Expert Event Coordinator. 
+Your goal is to create a logical, well-paced timeline/itinerary for the event.
+
+STRICT INSTRUCTIONS:
+- Format the output strictly as a bulleted list.
+- Format: "- **[Time]**: [Activity Name] - [Brief Description]"
+- Ensure the pacing is realistic (include breaks, registration, opening remarks, main events, and closing).
+- Formatting: Output ONLY the timeline. NO conversational filler.
+
+CRITICAL: If the user provided a correction in their latest message, you MUST follow it.
+
+Context History:
+${state.chatHistory}` }], { runName: "schedulerNode" })
   return { schedulerOutput: String(res.content) }
 }
 

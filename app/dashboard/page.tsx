@@ -12,6 +12,73 @@ type DBHistoryItem = {
   createdAt: string;
 }
 
+// --- NEW COMPONENT: Active Agents Dropdown ---
+function ActiveAgentsList() {
+  const [isOpen, setIsOpen] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const agents = [
+    { id: "supervisor", name: "Supervisor", desc: "Coordinates the swarm by collecting the Event Name, Target Audience, and Date/Time.", color: "text-amber-600 bg-amber-50 border-amber-200" },
+    { id: "marketing", name: "Marketing Agent", desc: "Crafts engaging promotional copy, Instagram visual ideas, and Twitter drafts.", color: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+    { id: "mailing", name: "Mailing Agent", desc: "Drafts professional, high-converting email invitation templates with placeholders.", color: "text-blue-600 bg-blue-50 border-blue-200" },
+    { id: "scheduler", name: "Scheduler Agent", desc: "Generates a logical, well-paced bulleted timeline for your event.", color: "text-purple-600 bg-purple-50 border-purple-200" },
+    { id: "whatsapp", name: "WhatsApp Agent", desc: "Writes concise, formatted WhatsApp messages tailored to the event's tone.", color: "text-teal-600 bg-teal-50 border-teal-200" }
+  ]
+
+  return (
+    <div className="absolute top-6 right-6 z-50 flex flex-col items-end">
+      {/* Floating Toggle Button */}
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 bg-white border border-slate-200 shadow-sm hover:shadow-md rounded-full px-4 py-2.5 text-sm font-bold text-slate-700 transition-all active:scale-95"
+      >
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+        </span>
+        Swarm Agents
+        <svg className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+      </button>
+
+      {/* Expandable Dropdown Panel */}
+      <div className={`mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden origin-top-right transition-all duration-300 ease-out ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'}`}>
+        <div className="p-4 border-b border-slate-50 bg-slate-50/50">
+          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Active AI Roster</h3>
+        </div>
+        <div className="flex flex-col max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 p-2 gap-1">
+          {agents.map((agent) => {
+            const isExpanded = expandedId === agent.id;
+            return (
+              <div key={agent.id} className="rounded-xl border border-transparent overflow-hidden transition-all duration-200">
+                <button 
+                  onClick={() => setExpandedId(isExpanded ? null : agent.id)}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl transition-colors hover:bg-slate-50 ${isExpanded ? 'bg-slate-50' : ''}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={`w-2 h-2 rounded-full ${agent.color.split(' ')[1]}`}></span>
+                    <span className="text-sm font-bold text-slate-700">{agent.name}</span>
+                  </div>
+                  <svg className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                {/* Accordion Description Area */}
+                <div className={`grid transition-all duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                  <div className="overflow-hidden">
+                    <div className="px-4 pb-3 pt-1 text-xs text-slate-500 leading-relaxed ml-3 border-l-2 border-slate-100">
+                      {agent.desc}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+// ----------------------------------------------
+
+
 export default function DashboardChat() {
   const router = useRouter()
   const { inputs, setInputs, outputs, setOutputs } = useAgentContext()
@@ -24,7 +91,6 @@ export default function DashboardChat() {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   
-  // NEW: State to track exactly which agent is currently streaming
   const [currentStreamingNode, setCurrentStreamingNode] = useState<string | null>(null)
   
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false)
@@ -34,6 +100,20 @@ export default function DashboardChat() {
   const abortControllerRef = useRef<AbortController | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setIsSidebarOpen(false)
+      } else {
+        setIsSidebarOpen(true)
+      }
+    }
+    
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   const fetchHistory = async () => {
     try {
@@ -159,7 +239,7 @@ export default function DashboardChat() {
     setIsTyping(true)
     setSwarmComplete(false)
     setIsWhatsAppOpen(false) 
-    setCurrentStreamingNode(null) // Reset active node tracking
+    setCurrentStreamingNode(null)
 
     setOutputs({ marketingOutput: "", mailingOutput: "", schedulerOutput: "", whatsappOutput: "", posterImage: "" })
 
@@ -205,7 +285,6 @@ export default function DashboardChat() {
           try {
             const parsed = JSON.parse(data)
             
-            // Update the state so the UI knows exactly who is typing
             setCurrentStreamingNode(parsed.node)
 
             if (["marketingNode", "mailingNode", "schedulerNode", "whatsappNode"].includes(parsed.node)) {
@@ -245,7 +324,7 @@ export default function DashboardChat() {
       }
     } finally {
       setIsTyping(false)
-      setCurrentStreamingNode(null) // Clear status when done
+      setCurrentStreamingNode(null) 
       abortControllerRef.current = null
       
       if (agentsRanThisTurn) {
@@ -300,7 +379,7 @@ export default function DashboardChat() {
     <div className="h-screen bg-slate-50 flex flex-col md:flex-row overflow-hidden">
       
       {/* SIDEBAR */}
-      <aside className={`bg-white border-r border-slate-200 hidden lg:flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 h-full shrink-0 transition-[width] duration-300 ease-in-out ${isSidebarOpen ? 'w-72' : 'w-[76px]'}`}>
+      <aside className={`bg-white border-r border-slate-200 hidden sm:flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 h-full shrink-0 transition-[width] duration-300 ease-in-out ${isSidebarOpen ? 'w-72' : 'w-[76px]'}`}>
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 h-[68px] shrink-0">
           {isSidebarOpen && (
             <h2 className="font-bold text-slate-800 flex items-center gap-2 whitespace-nowrap overflow-hidden">
@@ -386,8 +465,12 @@ export default function DashboardChat() {
         )}
       </aside>
 
-      {/* CHAT INTERFACE */}
-      <div className="flex-1 flex flex-col h-full bg-slate-50">
+      {/* CHAT INTERFACE - ADDED RELATIVE POSITIONING */}
+      <div className="flex-1 flex flex-col h-full bg-slate-50 relative">
+        
+        {/* ADDED THE NEW COMPONENT HERE */}
+        <ActiveAgentsList />
+
         <div className="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center">
           <div className="w-full max-w-3xl space-y-6 pb-6">
             

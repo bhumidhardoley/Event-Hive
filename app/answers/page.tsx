@@ -8,9 +8,14 @@ import ReactMarkdown from "react-markdown"
 type AgentType = "marketing" | "mailing" | "scheduler"
 
 // Helper to strip out the ```markdown blocks the AI sometimes adds
+// Helper to strip out the ```markdown blocks and squash huge gaps
 const cleanMarkdown = (text: string) => {
   if (!text) return "";
-  return text.replace(/^```(markdown|md|html)?\n?/gi, "").replace(/```$/g, "").trim();
+  return text
+    .replace(/^```(markdown|md|html)?\n?/gi, "")
+    .replace(/```$/g, "")
+    .replace(/\n{3,}/g, '\n\n') // <-- ADD THIS to squash excessive blank lines
+    .trim();
 };
 
 function AnswersContent() {
