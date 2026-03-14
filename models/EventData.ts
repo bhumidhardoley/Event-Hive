@@ -1,4 +1,3 @@
-
 import mongoose, { Schema, Document } from "mongoose";
 
 // Define the TypeScript interface for the data
@@ -8,7 +7,7 @@ export interface IEventData extends Document {
   marketingOutput: string;
   mailingOutput: string;
   schedulerOutput: string;
-  whatsappOutput: string; // <-- Added this
+  whatsappOutput: string; 
   chatHistory: any[]; 
   createdAt: Date;
   updatedAt: Date;
@@ -22,7 +21,7 @@ const EventDataSchema = new Schema<IEventData>(
     marketingOutput: { type: String, default: "" },
     mailingOutput: { type: String, default: "" },
     schedulerOutput: { type: String, default: "" },
-    whatsappOutput: { type: String, default: "" }, // <-- Added this
+    whatsappOutput: { type: String, default: "" }, 
     chatHistory: { type: Schema.Types.Mixed, default: [] },
   },
   { timestamps: true }

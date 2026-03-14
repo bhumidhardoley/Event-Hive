@@ -38,11 +38,13 @@ function AnswersContent() {
         .then(res => res.json())
         .then(data => {
           if (data.success && data.event) {
-            setOutputs({
+            setOutputs(prev => ({
+              ...prev,
               marketingOutput: cleanMarkdown(data.event.marketingOutput),
               mailingOutput: cleanMarkdown(data.event.mailingOutput),
-              schedulerOutput: cleanMarkdown(data.event.schedulerOutput)
-            })
+              schedulerOutput: cleanMarkdown(data.event.schedulerOutput),
+              whatsappOutput: data.event.whatsappOutput || "" // WhatsApp text securely loaded
+            }))
           }
           setLoading(prev => ({ ...prev, fetch: false }))
         })
@@ -99,11 +101,12 @@ function AnswersContent() {
       })
       const data = await res.json()
       if (data.syncedOutputs) {
-        setOutputs({
+        setOutputs(prev => ({
+          ...prev, // Protects whatsappOutput from being overwritten during a sync
           marketingOutput: cleanMarkdown(data.syncedOutputs.marketing),
           mailingOutput: cleanMarkdown(data.syncedOutputs.mailing),
           schedulerOutput: cleanMarkdown(data.syncedOutputs.scheduler),
-        })
+        }))
       }
     } catch (e) {
       console.error(e)
@@ -115,11 +118,13 @@ function AnswersContent() {
   const handleFinalize = async () => {
     setLoading(prev => ({ ...prev, finalize: true }))
     try {
-      setOutputs({
+      setOutputs(prev => ({
+        ...prev,
         marketingOutput: outputs.marketingOutput,
         mailingOutput: outputs.mailingOutput,
-        schedulerOutput: outputs.schedulerOutput
-      });
+        schedulerOutput: outputs.schedulerOutput,
+        whatsappOutput: outputs.whatsappOutput // Passes WhatsApp output to the Final page
+      }));
       router.push(`/final?sessionId=${sessionId || ""}`);
     } catch (e) {
       console.error("Failed to finalize event", e)
@@ -141,13 +146,11 @@ function AnswersContent() {
   const activeAgent = agents.find(a => a.key === activeTab) || agents[0];
 
   return (
-    // Outer wrapper locks to exactly 100vh and prevents body scrolling
     <div className="flex flex-col h-screen bg-slate-50 overflow-hidden text-slate-900">
       
-      {/* Main layout container: strictly columns, min-h-0 allows internal flex shrinking */}
       <main className="flex-1 flex flex-col w-full max-w-5xl mx-auto p-4 md:p-6 gap-5 min-h-0">
         
-        {/* --- HEADER (Fixed Height) --- */}
+        {/* --- HEADER --- */}
         <div className="shrink-0 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Review & Refine</h1>
@@ -179,7 +182,7 @@ function AnswersContent() {
           </div>
         </div>
 
-        {/* --- PROFESSIONAL TAB BUTTONS (Fixed Height) --- */}
+        {/* --- PROFESSIONAL TAB BUTTONS --- */}
         <div className="shrink-0 flex justify-center">
           <div className="bg-slate-200/60 p-1.5 rounded-xl flex flex-wrap gap-1 border border-slate-200 shadow-inner w-full md:w-auto">
             {agents.map((agent) => {
@@ -201,10 +204,9 @@ function AnswersContent() {
           </div>
         </div>
 
-        {/* --- ACTIVE AGENT BOX (Flexible Height, Internal Scroll) --- */}
+        {/* --- ACTIVE AGENT BOX --- */}
         <div className="flex-1 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden min-h-0">
           
-          {/* Box Header (Fixed Height) */}
           <div className={`shrink-0 px-5 py-4 flex justify-between items-center border-b ${activeAgent.colorClass}`}>
             <h3 className="font-bold text-sm uppercase tracking-wider">{activeAgent.title}</h3>
             <button 
@@ -217,7 +219,6 @@ function AnswersContent() {
             </button>
           </div>
 
-          {/* Box Content (Fills remaining space, scrolls if needed) */}
           <div className="flex-1 p-5 md:p-6 bg-slate-50/50 overflow-y-auto">
             {editing[activeAgent.key] ? (
               <textarea 
@@ -232,7 +233,6 @@ function AnswersContent() {
             )}
           </div>
 
-          {/* Box Footer Prompt Bar (Dashboard Style) */}
           <div className="shrink-0 p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col">
             <div className="w-full flex flex-col bg-white border border-slate-300 shadow-sm transition-all overflow-hidden rounded-3xl focus-within:ring-2 focus-within:ring-slate-900 focus-within:border-transparent">
               <div className="flex items-end gap-2 p-2">
