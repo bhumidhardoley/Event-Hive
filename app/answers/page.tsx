@@ -7,14 +7,13 @@ import ReactMarkdown from "react-markdown"
 
 type AgentType = "marketing" | "mailing" | "scheduler"
 
-// Helper to strip out the ```markdown blocks the AI sometimes adds
 // Helper to strip out the ```markdown blocks and squash huge gaps
 const cleanMarkdown = (text: string) => {
   if (!text) return "";
   return text
     .replace(/^```(markdown|md|html)?\n?/gi, "")
     .replace(/```$/g, "")
-    .replace(/\n{3,}/g, '\n\n') // <-- ADD THIS to squash excessive blank lines
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 };
 
@@ -43,7 +42,8 @@ function AnswersContent() {
               marketingOutput: cleanMarkdown(data.event.marketingOutput),
               mailingOutput: cleanMarkdown(data.event.mailingOutput),
               schedulerOutput: cleanMarkdown(data.event.schedulerOutput),
-              whatsappOutput: data.event.whatsappOutput || "" // WhatsApp text securely loaded
+              whatsappOutput: data.event.whatsappOutput || "",
+              formOutput: data.event.formOutput || "" // Successfully loads the Form JSON
             }))
           }
           setLoading(prev => ({ ...prev, fetch: false }))
@@ -102,7 +102,7 @@ function AnswersContent() {
       const data = await res.json()
       if (data.syncedOutputs) {
         setOutputs(prev => ({
-          ...prev, // Protects whatsappOutput from being overwritten during a sync
+          ...prev, // Protects whatsappOutput and formOutput during sync
           marketingOutput: cleanMarkdown(data.syncedOutputs.marketing),
           mailingOutput: cleanMarkdown(data.syncedOutputs.mailing),
           schedulerOutput: cleanMarkdown(data.syncedOutputs.scheduler),
@@ -123,7 +123,8 @@ function AnswersContent() {
         marketingOutput: outputs.marketingOutput,
         mailingOutput: outputs.mailingOutput,
         schedulerOutput: outputs.schedulerOutput,
-        whatsappOutput: outputs.whatsappOutput // Passes WhatsApp output to the Final page
+        whatsappOutput: outputs.whatsappOutput,
+        formOutput: outputs.formOutput // Passes Form output to Final page
       }));
       router.push(`/final?sessionId=${sessionId || ""}`);
     } catch (e) {

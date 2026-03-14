@@ -7,35 +7,18 @@ export async function POST(req: Request) {
     await dbConnect()
     const body = await req.json()
     
-    // 1. We extract whatsappOutput from the incoming request body
-    const { 
-      sessionId, 
-      eventName, 
-      marketingOutput, 
-      mailingOutput, 
-      schedulerOutput, 
-      whatsappOutput, // <-- Added this
-      chatHistory 
-    } = body
+    // MUST have formOutput here
+    const { sessionId, eventName, marketingOutput, mailingOutput, schedulerOutput, whatsappOutput, formOutput, chatHistory } = body
 
-    // 2. We pass it into the database update function
     const event = await EventData.findOneAndUpdate(
       { sessionId },
-      { 
-        eventName, 
-        marketingOutput, 
-        mailingOutput, 
-        schedulerOutput, 
-        whatsappOutput, // <-- Added this
-        chatHistory 
-      },
+      { eventName, marketingOutput, mailingOutput, schedulerOutput, whatsappOutput, formOutput, chatHistory }, // MUST have formOutput here
       { new: true, upsert: true }
     )
 
     return NextResponse.json({ success: true, event })
   } catch (error) {
-    console.error("Database POST Error:", error)
-    return NextResponse.json({ success: false, error: "Failed to save to database" }, { status: 500 })
+    return NextResponse.json({ success: false, error: "Failed to save" }, { status: 500 })
   }
 }
 

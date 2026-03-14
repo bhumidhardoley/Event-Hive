@@ -22,7 +22,8 @@ function ActiveAgentsList() {
     { id: "marketing", name: "Marketing Agent", desc: "Crafts engaging promotional copy, Instagram visual ideas, and Twitter drafts.", color: "text-emerald-600 bg-emerald-50 border-emerald-200" },
     { id: "mailing", name: "Mailing Agent", desc: "Drafts professional, high-converting email invitation templates with placeholders.", color: "text-blue-600 bg-blue-50 border-blue-200" },
     { id: "scheduler", name: "Scheduler Agent", desc: "Generates a logical, well-paced bulleted timeline for your event.", color: "text-purple-600 bg-purple-50 border-purple-200" },
-    { id: "whatsapp", name: "WhatsApp Agent", desc: "Writes concise, formatted WhatsApp messages tailored to the event's tone.", color: "text-teal-600 bg-teal-50 border-teal-200" }
+    { id: "whatsapp", name: "WhatsApp Agent", desc: "Writes concise, formatted WhatsApp messages tailored to the event's tone.", color: "text-teal-600 bg-teal-50 border-teal-200" },
+    { id: "form", name: "Form Agent", desc: "Generates necessary registration fields for the event to create a Google Form.", color: "text-pink-600 bg-pink-50 border-pink-200" }
   ]
 
   return (
@@ -77,7 +78,6 @@ function ActiveAgentsList() {
   )
 }
 // ----------------------------------------------
-
 
 export default function DashboardChat() {
   const router = useRouter()
@@ -142,10 +142,10 @@ export default function DashboardChat() {
     setInputs({
       mailingData: [],
       chatHistory: [
-        { id: Date.now().toString(), role: "supervisor", content: "Hello! I am the Event Hive Supervisor. To get started, what kind of event are you hosting? Please provide the event name, target audience, and general timeframe." }
+        { id: Date.now().toString(), role: "supervisor", content: "Hello! I am the Event Hive Supervisor. To get started, what kind of event are you hosting, and do you want me to generate a registration form?" }
       ]
     })
-    setOutputs({ marketingOutput: "", mailingOutput: "", schedulerOutput: "", whatsappOutput: "", posterImage: "" })
+    setOutputs({ marketingOutput: "", mailingOutput: "", schedulerOutput: "", whatsappOutput: "", formOutput: "", posterImage: "" })
     setSwarmComplete(false)
     setUploadedFileName(null)
     setInputValue("")
@@ -241,7 +241,8 @@ export default function DashboardChat() {
     setIsWhatsAppOpen(false) 
     setCurrentStreamingNode(null)
 
-    setOutputs({ marketingOutput: "", mailingOutput: "", schedulerOutput: "", whatsappOutput: "", posterImage: "" })
+    // Clear outputs before new generation
+    setOutputs({ marketingOutput: "", mailingOutput: "", schedulerOutput: "", whatsappOutput: "", formOutput: "", posterImage: "" })
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
@@ -283,11 +284,12 @@ export default function DashboardChat() {
           if (data === "[DONE]") continue
 
           try {
+            // Correctly scoped parsed object
             const parsed = JSON.parse(data)
             
             setCurrentStreamingNode(parsed.node)
 
-            if (["marketingNode", "mailingNode", "schedulerNode", "whatsappNode"].includes(parsed.node)) {
+            if (["marketingNode", "mailingNode", "schedulerNode", "whatsappNode", "formNode"].includes(parsed.node)) {
               agentsRanThisTurn = true
             }
             
@@ -297,7 +299,8 @@ export default function DashboardChat() {
               const lastMsg = history[lastIndex]
 
               if (lastMsg.role !== parsed.node) {
-                history.push({ id: Date.now().toString(), role: parsed.node, content: parsed.text })
+                // Type casting here to satisfy ChatMessage role type constraints
+                history.push({ id: Date.now().toString(), role: parsed.node as any, content: parsed.text })
               } else {
                 history[lastIndex] = { ...lastMsg, content: lastMsg.content + parsed.text }
               }
@@ -310,6 +313,7 @@ export default function DashboardChat() {
               if (parsed.node === "mailingNode") next.mailingOutput += parsed.text
               if (parsed.node === "schedulerNode") next.schedulerOutput += parsed.text
               if (parsed.node === "whatsappNode") next.whatsappOutput += parsed.text 
+              if (parsed.node === "formNode") next.formOutput += parsed.text // Safely capturing Form JSON
               return next
             })
 
@@ -341,6 +345,7 @@ export default function DashboardChat() {
       case "mailingNode": return { name: "Mailing Agent", color: "text-blue-600 bg-blue-50" }
       case "schedulerNode": return { name: "Scheduler Agent", color: "text-purple-600 bg-purple-50" }
       case "whatsappNode": return { name: "WhatsApp Agent", color: "text-teal-600 bg-teal-50" }
+      case "formNode": return { name: "Form Agent", color: "text-pink-600 bg-pink-50" }
       default: return { name: "Supervisor", color: "text-slate-600 bg-slate-50" }
     }
   }
@@ -351,7 +356,7 @@ export default function DashboardChat() {
     let extractedEventName = "Untitled Event"
     const lastSupervisorMsg = inputs.chatHistory.slice().reverse().find(m => m.role === "supervisorNode" || m.role === "supervisor")
     if (lastSupervisorMsg && lastSupervisorMsg.content.includes("###START_SWARM###|")) {
-      extractedEventName = lastSupervisorMsg.content.split("###START_SWARM###|")[1].split("\n")[0].trim()
+      extractedEventName = lastSupervisorMsg.content.split("###START_SWARM###|")[1].split("\n")[0].replace("|FORM_YES", "").replace("|FORM_NO", "").trim()
     }
 
     try {
@@ -365,6 +370,7 @@ export default function DashboardChat() {
           mailingOutput: outputs.mailingOutput,
           schedulerOutput: outputs.schedulerOutput,
           whatsappOutput: outputs.whatsappOutput, 
+          formOutput: outputs.formOutput, // Sending Form JSON to Database
           chatHistory: inputs.chatHistory
         })
       })
@@ -479,8 +485,8 @@ export default function DashboardChat() {
               const agentUI = getAgentLabel(msg.role)
               const displayContent = msg.content.replace(/###START_SWARM###(?:\|.*)?/g, "*(Initiating Swarm...)*");
 
-              // Hide WhatsApp node from main flow
-              if (msg.role === "whatsappNode") return null;
+              // Hide WhatsApp and Form raw JSON nodes from the main chat flow
+              if (msg.role === "whatsappNode" || msg.role === "formNode") return null;
 
               return (
                 <div key={i} className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
@@ -499,13 +505,17 @@ export default function DashboardChat() {
             })}
             
             {/* UPDATED LOADING UI */}
-            {isTyping && (!currentStreamingNode || currentStreamingNode === "whatsappNode") && (
+            {isTyping && (!currentStreamingNode || currentStreamingNode === "whatsappNode" || currentStreamingNode === "formNode") && (
                <div className="flex items-start">
                  <span className="bg-white border border-slate-200 text-slate-500 text-xs font-medium px-4 py-2 rounded-full shadow-sm animate-pulse flex items-center gap-2">
                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                    {!currentStreamingNode 
                      ? "Agents are thinking..." 
-                     : "Generating WhatsApp text..."}
+                     : currentStreamingNode === "whatsappNode" 
+                       ? "Generating WhatsApp text..." 
+                       : currentStreamingNode === "formNode" 
+                         ? "Generating Google Form structure..." 
+                         : "Agents are typing..."}
                  </span>
                </div>
             )}
